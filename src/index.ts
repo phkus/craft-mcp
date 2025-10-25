@@ -44,11 +44,12 @@ export class MyMCP extends McpAgent {
 			},
 			async ({ markdown, parent, position, subpage }) => {
 				try {
-					let requestBody: any;
-
 					if (subpage) {
+						// Two-step process for creating subpages with content:
+						// Step 1: Create the page with just the title
+						// Step 2: Insert content into that page (Craft auto-parses multiline markdown)
+
 						// Parse markdown to extract title and content
-						// First heading becomes page title, rest becomes content blocks
 						const lines = markdown.split('\n');
 						let pageTitle = '';
 						let contentMarkdown = '';
@@ -67,42 +68,108 @@ export class MyMCP extends McpAgent {
 							}
 						}
 
-						// Build the page block with content
-						const pageBlock: any = {
-							type: "page",
-							markdown: `<page>${pageTitle}</page>`,
-						};
+						// Step 1: Create the page with title only (no <page> tags)
+						const pageResponse = await fetch(`${CRAFT_API_BASE_URL}/blocks`, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								blocks: [
+									{
+										type: "page",
+										markdown: pageTitle || "Untitled Page",
+									},
+								],
+								position: parent
+									? { position, pageId: parent }
+									: { position, pageId: "0" },
+							}),
+						});
 
-						// If there's content after the title, add it as child blocks
-						if (contentMarkdown.trim()) {
-							pageBlock.content = [
-								{
-									type: "text",
-									markdown: contentMarkdown.trim(),
-								},
-							];
+						if (!pageResponse.ok) {
+							const errorText = await pageResponse.text();
+							return {
+								content: [
+									{
+										type: "text",
+										text: `Failed to create subpage: Craft API error (${pageResponse.status}): ${errorText}`,
+									},
+								],
+								isError: true,
+							};
 						}
 
-						requestBody = {
-							blocks: [pageBlock],
-							position: parent
-								? { position, pageId: parent }
-								: { position, pageId: "0" },
-						};
-					} else {
-						// Insert as regular text block
-						requestBody = {
-							blocks: [
+						const createdPage = (await pageResponse.json()) as InsertedBlock[];
+						const pageId = createdPage[0].id;
+
+						// Step 2: If there's content, insert it into the page
+						if (contentMarkdown.trim()) {
+							const contentResponse = await fetch(
+								`${CRAFT_API_BASE_URL}/blocks`,
+								{
+									method: "POST",
+									headers: { "Content-Type": "application/json" },
+									body: JSON.stringify({
+										blocks: [
+											{
+												type: "text",
+												markdown: contentMarkdown.trim(),
+											},
+										],
+										position: {
+											position: "end",
+											pageId: pageId,
+										},
+									}),
+								},
+							);
+
+							if (!contentResponse.ok) {
+								const errorText = await contentResponse.text();
+								return {
+									content: [
+										{
+											type: "text",
+											text: `Created subpage ${pageId} but failed to add content: Craft API error (${contentResponse.status}): ${errorText}`,
+										},
+									],
+									isError: true,
+								};
+							}
+
+							const contentBlocks =
+								(await contentResponse.json()) as InsertedBlock[];
+							return {
+								content: [
+									{
+										type: "text",
+										text: `Successfully created subpage ${pageId} with ${contentBlocks.length} content block(s).`,
+									},
+								],
+							};
+						}
+
+						return {
+							content: [
 								{
 									type: "text",
-									markdown: markdown,
+									text: `Successfully created empty subpage ${pageId}.`,
 								},
 							],
-							position: parent
-								? { position, pageId: parent }
-								: { position, pageId: "0" },
 						};
 					}
+
+					// Regular text insertion (not a subpage)
+					const requestBody = {
+						blocks: [
+							{
+								type: "text",
+								markdown: markdown,
+							},
+						],
+						position: parent
+							? { position, pageId: parent }
+							: { position, pageId: "0" },
+					};
 
 					const response = await fetch(`${CRAFT_API_BASE_URL}/blocks`, {
 						method: "POST",
@@ -128,7 +195,7 @@ export class MyMCP extends McpAgent {
 						content: [
 							{
 								type: "text",
-								text: `Successfully inserted ${subpage ? "subpage" : "text"} at ${position} of ${parent || "root"}. Created ${insertedBlocks.length} block(s) with ID(s): ${insertedBlocks.map((b) => b.id).join(", ")}`,
+								text: `Successfully inserted text at ${position} of ${parent || "root"}. Created ${insertedBlocks.length} block(s) with ID(s): ${insertedBlocks.map((b) => b.id).join(", ")}`,
 							},
 						],
 					};
