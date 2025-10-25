@@ -32,6 +32,7 @@ craft-mcp/
 │   └── index.ts          # Main MCP server implementation (MyMCP class)
 ├── docs/
 │   ├── craft-api-docs.md           # Craft API documentation
+│   ├── craft-mcp-spec.md           # MCP tool specifications
 │   ├── mcp-creation-guide.md       # MCP best practices guide
 │   └── Cloudflare Developer Documentation.md
 ├── wrangler.toml         # Cloudflare Workers configuration
@@ -43,10 +44,31 @@ craft-mcp/
 
 ### Tools
 
-1. **append_text** - Appends markdown-formatted text to a Craft document
-   - `pageId` (optional, default: "0"): Target page block ID
-   - `text` (required): Markdown content to append
+1. **insertText** - Insert markdown content into the document
+   - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
+   - `parent` (optional): ID of page or heading to insert into (omit for root page)
+   - `position` (required): "start" or "end" - where to insert within the parent
+   - `subpage` (optional, default: false): If true, wraps content in a new page block
    - Calls: `POST /blocks` on Craft API
+
+2. **deleteText** - Delete a page or heading and all its content
+   - `id` (required): ID of the page or heading to delete
+   - WARNING: Destructive operation that deletes entire section including nested content
+   - Calls: `DELETE /blocks` on Craft API
+
+3. **fetchBlocks** - Read document content with IDs embedded
+   - `id` (optional): ID of page or heading to fetch (omit for root page)
+   - `maxDepth` (optional, default: -1): Maximum nesting depth (-1 for all, 0 for block only, 1 for immediate children)
+   - Returns: Markdown with embedded IDs using `<!-- id:... -->` for headings and `<page id="...">` tags
+   - Calls: `GET /blocks` on Craft API
+
+4. **search** - Search for text within the document using pattern matching
+   - `pattern` (required): Search pattern (supports regex)
+   - `caseSensitive` (optional, default: false): Case-sensitive search
+   - `beforeBlockCount` (optional, default: 2): Context blocks before match
+   - `afterBlockCount` (optional, default: 2): Context blocks after match
+   - Returns: Formatted results with hierarchical path and context
+   - Calls: `GET /blocks/search` on Craft API
 
 ## Craft API Configuration
 
@@ -54,6 +76,9 @@ craft-mcp/
 - **Authentication**: Not yet implemented (planned for future)
 - **Endpoints Used**:
   - `POST /blocks` - Insert content blocks
+  - `DELETE /blocks` - Delete blocks by ID
+  - `GET /blocks` - Fetch blocks with optional depth control
+  - `GET /blocks/search` - Search for patterns in content
 
 ## MCP Server Details
 
@@ -103,12 +128,10 @@ Each MCP client session gets its own Durable Object instance with persistent sta
 
 Potential features to add:
 - Authentication (OAuth or API token)
-- More tools:
-  - `fetch_blocks` - Read document content
-  - `search_blocks` - Search within documents
-  - `update_blocks` - Modify existing content
-  - `delete_blocks` - Remove content
-  - `move_blocks` - Reorganize document structure
+- Additional tools:
+  - `updateBlocks` - Modify existing content in place
+  - `moveBlocks` - Reorganize document structure
+  - `uploadFile` - Upload and insert files (images, videos, documents)
 - Error handling improvements
 - Rate limiting
 - Logging and monitoring
