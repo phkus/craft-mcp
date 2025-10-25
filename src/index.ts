@@ -38,6 +38,9 @@ export class MyMCP extends McpAgent {
 			this.documents = {};
 		}
 
+		// Load current document from storage
+		this.currentDocument = await this.ctx.storage.get<string>("currentDocument") || null;
+
 		// 0. listDocuments - Show available documents and current selection
 		this.server.tool(
 			"listDocuments",
@@ -395,6 +398,7 @@ export class MyMCP extends McpAgent {
 					// If document was explicitly specified, set it as current
 					if (document) {
 						this.currentDocument = targetDocument;
+						await this.ctx.storage.put("currentDocument", targetDocument);
 					}
 
 					const params = new URLSearchParams();
