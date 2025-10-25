@@ -47,13 +47,13 @@ export class MyMCP extends McpAgent {
 					let requestBody: any;
 
 					if (subpage) {
-						// Create a page block with the markdown as content
+						// Create a page block - Craft will parse the markdown and extract the title
+						// from the first heading (if present)
 						requestBody = {
 							blocks: [
 								{
 									type: "page",
-									textStyle: "page",
-									markdown: `<page>${markdown}</page>`,
+									markdown: markdown,
 								},
 							],
 							position: parent
