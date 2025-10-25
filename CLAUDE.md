@@ -42,27 +42,46 @@ craft-mcp/
 
 ## Current Features
 
+### Multi-Document Support
+
+The server supports multiple Craft documents configured via environment variables. Each MCP session maintains a "current document" that tools operate on.
+
+**Workflow:**
+1. Call `listDocuments` to see available documents
+2. Call `fetchBlocks` with a document name to set the working document
+3. Use `insertText`, `deleteText`, and `search` on the current document
+
 ### Tools
 
-1. **insertText** - Insert markdown content into the document
+0. **listDocuments** - Show available documents and current selection
+   - No parameters
+   - Returns: List of configured document names with indicator for current document
+   - Used to discover available documents before fetching
+
+1. **fetchBlocks** - Read document content with IDs embedded
+   - `document` (optional): Document name (e.g., "MCP test") - sets working document if specified
+   - `id` (optional): ID of page or heading to fetch (omit for root page)
+   - `maxDepth` (optional, default: -1): Maximum nesting depth (-1 for all, 0 for block only, 1 for immediate children)
+   - **IMPORTANT**: If `document` parameter is provided, this tool sets it as the working document for subsequent operations
+   - Returns: Markdown with embedded IDs using `<!-- id:... -->` for headings and `<page id="...">` tags
+   - Calls: `GET /blocks` on Craft API
+
+2. **insertText** - Insert markdown content into the document
+   - Operates on the current document (set via fetchBlocks)
    - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
    - `parent` (optional): ID of page or heading to insert into (omit for root page)
    - `position` (required): "start" or "end" - where to insert within the parent
    - `subpage` (optional, default: false): If true, wraps content in a new page block
    - Calls: `POST /blocks` on Craft API
 
-2. **deleteText** - Delete a page or heading and all its content
+3. **deleteText** - Delete a page or heading and all its content
+   - Operates on the current document (set via fetchBlocks)
    - `id` (required): ID of the page or heading to delete
    - WARNING: Destructive operation that deletes entire section including nested content
    - Calls: `DELETE /blocks` on Craft API
 
-3. **fetchBlocks** - Read document content with IDs embedded
-   - `id` (optional): ID of page or heading to fetch (omit for root page)
-   - `maxDepth` (optional, default: -1): Maximum nesting depth (-1 for all, 0 for block only, 1 for immediate children)
-   - Returns: Markdown with embedded IDs using `<!-- id:... -->` for headings and `<page id="...">` tags
-   - Calls: `GET /blocks` on Craft API
-
 4. **search** - Search for text within the document using pattern matching
+   - Operates on the current document (set via fetchBlocks)
    - `pattern` (required): Search pattern (supports regex)
    - `caseSensitive` (optional, default: false): Case-sensitive search
    - `beforeBlockCount` (optional, default: 2): Context blocks before match
@@ -72,13 +91,29 @@ craft-mcp/
 
 ## Craft API Configuration
 
-- **Base URL**: `https://connect.craft.do/links/AcHPMgNXYdR/api/v1`
-- **Authentication**: Not yet implemented (planned for future)
-- **Endpoints Used**:
-  - `POST /blocks` - Insert content blocks
-  - `DELETE /blocks` - Delete blocks by ID
-  - `GET /blocks` - Fetch blocks with optional depth control
-  - `GET /blocks/search` - Search for patterns in content
+### Document Setup
+
+Documents are configured in `wrangler.toml` as environment variables:
+
+```toml
+[vars]
+CRAFT_DOCUMENTS = '{"MCP test": "https://connect.craft.do/links/AcHPMgNXYdR/api/v1", "Possible Futures": "https://connect.craft.do/links/HmHPcIx86Sp/api/v1"}'
+```
+
+**To add a new document:**
+1. In Craft app, enable API for the document (Share → Enable API)
+2. Copy the link ID from the generated URL
+3. Add to `CRAFT_DOCUMENTS` JSON with format: `"Document Name": "https://connect.craft.do/links/{LINK_ID}/api/v1"`
+4. Commit and push to GitHub (Cloudflare will auto-deploy)
+
+### API Endpoints Used
+
+- `POST /blocks` - Insert content blocks
+- `DELETE /blocks` - Delete blocks by ID
+- `GET /blocks` - Fetch blocks with optional depth control
+- `GET /blocks/search` - Search for patterns in content
+
+**Authentication**: Not yet implemented (planned for future)
 
 ## MCP Server Details
 
@@ -116,7 +151,12 @@ The server uses Durable Objects for stateful MCP sessions:
 - **Class Name**: `MyMCP`
 - **Compatibility Flags**: `nodejs_compat`
 
-Each MCP client session gets its own Durable Object instance with persistent state.
+Each MCP client session gets its own Durable Object instance with persistent state:
+- Document mappings (loaded from `CRAFT_DOCUMENTS` env var)
+- Current working document (set by `fetchBlocks` tool)
+
+**Environment Variables:**
+- `CRAFT_DOCUMENTS` - JSON mapping of document names to base URLs (configured in wrangler.toml)
 
 ## Key Dependencies
 

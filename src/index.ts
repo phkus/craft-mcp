@@ -2,8 +2,10 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-// Craft API configuration
-const CRAFT_API_BASE_URL = "https://connect.craft.do/links/AcHPMgNXYdR/api/v1";
+// Environment variables interface
+interface Env {
+	CRAFT_DOCUMENTS: string;
+}
 
 // Type definition for inserted blocks
 interface InsertedBlock {
@@ -21,8 +23,76 @@ export class MyMCP extends McpAgent {
 		version: "1.0.0",
 	});
 
+	// Document configuration from environment variables
+	private documents: Record<string, string> = {};
+	// Currently selected document for operations
+	private currentDocument: string | null = null;
+
 	async init() {
+		// Parse document mappings from environment variable
+		try {
+			const env = this.env as Env;
+			this.documents = JSON.parse(env.CRAFT_DOCUMENTS || "{}");
+		} catch (error) {
+			console.error("Failed to parse CRAFT_DOCUMENTS:", error);
+			this.documents = {};
+		}
+
+		// 0. listDocuments - Show available documents and current selection
+		this.server.tool(
+			"listDocuments",
+			{},
+			async () => {
+				try {
+					const documentNames = Object.keys(this.documents);
+
+					if (documentNames.length === 0) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: "No documents configured. Please add document URLs to the CRAFT_DOCUMENTS environment variable in wrangler.toml.",
+								},
+							],
+						};
+					}
+
+					let text = `Available documents (${documentNames.length}):\n\n`;
+					for (const name of documentNames) {
+						const indicator = name === this.currentDocument ? "→ " : "  ";
+						text += `${indicator}${name}\n`;
+					}
+
+					if (this.currentDocument) {
+						text += `\nCurrent document: ${this.currentDocument}`;
+					} else {
+						text += `\nNo document selected. Use fetchBlocks with a document name to set the working document.`;
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: text,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Failed to list documents: ${error instanceof Error ? error.message : String(error)}`,
+							},
+						],
+						isError: true,
+					};
+				}
+			},
+		);
+
 		// 1. insertText - Insert markdown content into the document
+		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"insertText",
 			{
@@ -40,10 +110,12 @@ export class MyMCP extends McpAgent {
 					.boolean()
 					.optional()
 					.default(false)
-					.describe("If true, wraps content in a new page block (first heading becomes page title)."),
+					.describe("If true, wraps content in a new page block (first heading becomes page title). Operates on the current document (set via fetchBlocks)."),
 			},
 			async ({ markdown, parent, position, subpage }) => {
 				try {
+					// Get current document URL
+					const documentUrl = this.getCurrentDocumentUrl();
 					if (subpage) {
 						// Two-step process for creating subpages with content:
 						// Step 1: Create the page with just the title
@@ -69,7 +141,7 @@ export class MyMCP extends McpAgent {
 						}
 
 						// Step 1: Create the page with title only (no <page> tags)
-						const pageResponse = await fetch(`${CRAFT_API_BASE_URL}/blocks`, {
+						const pageResponse = await fetch(`${documentUrl}/blocks`, {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({
@@ -104,7 +176,7 @@ export class MyMCP extends McpAgent {
 						// Step 2: If there's content, insert it into the page
 						if (contentMarkdown.trim()) {
 							const contentResponse = await fetch(
-								`${CRAFT_API_BASE_URL}/blocks`,
+								`${documentUrl}/blocks`,
 								{
 									method: "POST",
 									headers: { "Content-Type": "application/json" },
@@ -171,7 +243,7 @@ export class MyMCP extends McpAgent {
 							: { position, pageId: "0" },
 					};
 
-					const response = await fetch(`${CRAFT_API_BASE_URL}/blocks`, {
+					const response = await fetch(`${documentUrl}/blocks`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify(requestBody),
@@ -214,16 +286,20 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 2. deleteText - Delete a page or heading and all its content
+		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"deleteText",
 			{
 				id: z
 					.string()
-					.describe("ID of the page or heading to delete. WARNING: Deletes entire section including nested content."),
+					.describe("ID of the page or heading to delete. WARNING: Deletes entire section including nested content. Operates on the current document (set via fetchBlocks)."),
 			},
 			async ({ id }) => {
 				try {
-					const response = await fetch(`${CRAFT_API_BASE_URL}/blocks`, {
+					// Get current document URL
+					const documentUrl = this.getCurrentDocumentUrl();
+
+					const response = await fetch(`${documentUrl}/blocks`, {
 						method: "DELETE",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ blockIds: [id] }),
@@ -266,9 +342,14 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 3. fetchBlocks - Read document content with IDs embedded
+		// IMPORTANT: This tool also sets the working document for subsequent operations
 		this.server.tool(
 			"fetchBlocks",
 			{
+				document: z
+					.string()
+					.optional()
+					.describe("Name of the document to fetch (e.g., 'MCP test'). If specified, also sets this as the working document for subsequent insertText, deleteText, and search operations. If omitted, uses the current working document."),
 				id: z
 					.string()
 					.optional()
@@ -279,14 +360,49 @@ export class MyMCP extends McpAgent {
 					.default(-1)
 					.describe("Maximum nesting depth to fetch. Default -1 (all), 0 (only block), 1 (immediate children)."),
 			},
-			async ({ id, maxDepth }) => {
+			async ({ document, id, maxDepth }) => {
 				try {
+					// Determine which document to use
+					let targetDocument = document || this.currentDocument;
+
+					if (!targetDocument) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: "No document specified and no current document set. Please specify a document name or use listDocuments to see available documents.",
+								},
+							],
+							isError: true,
+						};
+					}
+
+					// Check if document exists
+					const documentUrl = this.documents[targetDocument];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${targetDocument}' not found. Available documents: ${available}. Use listDocuments to see all options.`,
+								},
+							],
+							isError: true,
+						};
+					}
+
+					// If document was explicitly specified, set it as current
+					if (document) {
+						this.currentDocument = targetDocument;
+					}
+
 					const params = new URLSearchParams();
 					if (id) params.set("id", id);
 					if (maxDepth !== undefined) params.set("maxDepth", maxDepth.toString());
 
 					const response = await fetch(
-						`${CRAFT_API_BASE_URL}/blocks?${params.toString()}`,
+						`${documentUrl}/blocks?${params.toString()}`,
 						{
 							method: "GET",
 							headers: { Accept: "application/json" },
@@ -309,11 +425,16 @@ export class MyMCP extends McpAgent {
 					const blocks = (await response.json()) as any[];
 					const markdown = this.convertBlocksToMarkdown(blocks);
 
+					let statusNote = "";
+					if (document) {
+						statusNote = `\n\n[Working document set to: ${targetDocument}]`;
+					}
+
 					return {
 						content: [
 							{
 								type: "text",
-								text: markdown,
+								text: markdown + statusNote,
 							},
 						],
 					};
@@ -332,12 +453,13 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 4. search - Search within the document
+		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"search",
 			{
 				pattern: z
 					.string()
-					.describe("Search pattern (supports regex)."),
+					.describe("Search pattern (supports regex). Operates on the current document (set via fetchBlocks)."),
 				caseSensitive: z
 					.boolean()
 					.optional()
@@ -356,6 +478,9 @@ export class MyMCP extends McpAgent {
 			},
 			async ({ pattern, caseSensitive, beforeBlockCount, afterBlockCount }) => {
 				try {
+					// Get current document URL
+					const documentUrl = this.getCurrentDocumentUrl();
+
 					const params = new URLSearchParams();
 					params.set("pattern", pattern);
 					if (caseSensitive) params.set("caseSensitive", "true");
@@ -365,7 +490,7 @@ export class MyMCP extends McpAgent {
 						params.set("afterBlockCount", afterBlockCount.toString());
 
 					const response = await fetch(
-						`${CRAFT_API_BASE_URL}/blocks/search?${params.toString()}`,
+						`${documentUrl}/blocks/search?${params.toString()}`,
 						{
 							method: "GET",
 							headers: { Accept: "application/json" },
@@ -409,6 +534,28 @@ export class MyMCP extends McpAgent {
 				}
 			},
 		);
+	}
+
+	/**
+	 * Get the base URL for the current document
+	 * @throws Error if no document is selected or document not found
+	 */
+	private getCurrentDocumentUrl(): string {
+		if (!this.currentDocument) {
+			throw new Error(
+				"No document selected. Use fetchBlocks with a document name to set the working document, or use listDocuments to see available documents.",
+			);
+		}
+
+		const documentUrl = this.documents[this.currentDocument];
+		if (!documentUrl) {
+			const available = Object.keys(this.documents).join(", ");
+			throw new Error(
+				`Current document '${this.currentDocument}' not found in configuration. Available documents: ${available}`,
+			);
+		}
+
+		return documentUrl;
 	}
 
 	/**

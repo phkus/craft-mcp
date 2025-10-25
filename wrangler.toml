@@ -12,3 +12,10 @@ class_name = "MyMCP"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MyMCP"]
+
+# Document configuration
+# Add your Craft document links here in JSON format
+# To get a link ID: In Craft app, enable API for a document and copy the link
+# The link format is: https://connect.craft.do/links/{LINK_ID}/api/v1
+[vars]
+CRAFT_DOCUMENTS = '{"MCP test": "https://connect.craft.do/links/AcHPMgNXYdR/api/v1", "Possible Futures": "https://connect.craft.do/links/HmHPcIx86Sp/api/v1"}'
