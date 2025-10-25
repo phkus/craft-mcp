@@ -47,15 +47,44 @@ export class MyMCP extends McpAgent {
 					let requestBody: any;
 
 					if (subpage) {
-						// Create a page block - Craft will parse the markdown and extract the title
-						// from the first heading (if present)
-						requestBody = {
-							blocks: [
+						// Parse markdown to extract title and content
+						// First heading becomes page title, rest becomes content blocks
+						const lines = markdown.split('\n');
+						let pageTitle = '';
+						let contentMarkdown = '';
+						let foundTitle = false;
+
+						for (let i = 0; i < lines.length; i++) {
+							const line = lines[i];
+							// Check if this is a heading (starts with #)
+							if (!foundTitle && line.trim().startsWith('#')) {
+								// Extract title without the # symbols
+								pageTitle = line.replace(/^#+\s*/, '').trim();
+								foundTitle = true;
+							} else if (foundTitle) {
+								// Everything after the first heading goes into content
+								contentMarkdown += (contentMarkdown ? '\n' : '') + line;
+							}
+						}
+
+						// Build the page block with content
+						const pageBlock: any = {
+							type: "page",
+							markdown: `<page>${pageTitle}</page>`,
+						};
+
+						// If there's content after the title, add it as child blocks
+						if (contentMarkdown.trim()) {
+							pageBlock.content = [
 								{
-									type: "page",
-									markdown: markdown,
+									type: "text",
+									markdown: contentMarkdown.trim(),
 								},
-							],
+							];
+						}
+
+						requestBody = {
+							blocks: [pageBlock],
 							position: parent
 								? { position, pageId: parent }
 								: { position, pageId: "0" },
