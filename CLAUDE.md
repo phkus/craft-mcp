@@ -44,32 +44,30 @@ craft-mcp/
 
 ### Multi-Document Support
 
-The server supports multiple Craft documents configured via environment variables. Each MCP session maintains a "current document" that tools operate on.
+The server supports multiple Craft documents configured via environment variables. All tools require an explicit `document` parameter to specify which document to operate on.
 
 **Workflow:**
 1. Call `listDocuments` to see available documents
-2. Call `fetchBlocks` with a document name to set the working document
-3. Use `insertText`, `deleteText`, `search`, and collection tools on the current document
+2. Call any tool with the `document` parameter to specify which document to use
 
 ### Tools
 
 #### Document & Block Tools
 
-0. **listDocuments** - Show available documents and current selection
+0. **listDocuments** - Show available documents
    - No parameters
-   - Returns: List of configured document names with indicator for current document
-   - Used to discover available documents before fetching
+   - Returns: List of configured document names
+   - Used to discover available documents
 
 1. **fetchBlocks** - Read document content with IDs embedded
-   - `document` (optional): Document name (e.g., "MCP test") - sets working document if specified
+   - `document` (required): Document name (e.g., "MCP test")
    - `id` (optional): ID of page or heading to fetch (omit for root page)
    - `maxDepth` (optional, default: -1): Maximum nesting depth (-1 for all, 0 for block only, 1 for immediate children)
-   - **IMPORTANT**: If `document` parameter is provided, this tool sets it as the working document for subsequent operations
    - Returns: Markdown with embedded IDs using `<!-- id:... -->` for headings and `<page id="...">` tags
    - Calls: `GET /blocks` on Craft API
 
 2. **insertText** - Insert markdown content into the document
-   - Operates on the current document (set via fetchBlocks)
+   - `document` (required): Document name (e.g., "MCP test")
    - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
    - `parent` (optional): ID of page or heading to insert into (omit for root page)
    - `position` (required): "start" or "end" - where to insert within the parent
@@ -77,13 +75,13 @@ The server supports multiple Craft documents configured via environment variable
    - Calls: `POST /blocks` on Craft API
 
 3. **deleteText** - Delete a page or heading and all its content
-   - Operates on the current document (set via fetchBlocks)
+   - `document` (required): Document name (e.g., "MCP test")
    - `id` (required): ID of the page or heading to delete
    - WARNING: Destructive operation that deletes entire section including nested content
    - Calls: `DELETE /blocks` on Craft API
 
 4. **search** - Search for text within the document using pattern matching
-   - Operates on the current document (set via fetchBlocks)
+   - `document` (required): Document name (e.g., "MCP test")
    - `pattern` (required): Search pattern (supports regex)
    - `caseSensitive` (optional, default: false): Case-sensitive search
    - `beforeBlockCount` (optional, default: 2): Context blocks before match
@@ -96,7 +94,7 @@ The server supports multiple Craft documents configured via environment variable
 Collections in Craft are similar to Notion databases - structured tables with custom schemas. These tools work generically with any collection schema.
 
 5. **getCollectionItems** - Retrieve items from a collection
-   - Operates on the current document (set via fetchBlocks)
+   - `document` (required): Document name (e.g., "MCP test")
    - `collectionName` (required): Name of the collection (e.g., "drafts", "notes", "tasks")
    - `maxDepth` (optional, default: -1): Maximum depth of nested content (-1 for all, 0 for properties only)
    - `useMarkdown` (optional, default: false): If true, returns `contentMarkdown` field instead of nested blocks
@@ -104,7 +102,7 @@ Collections in Craft are similar to Notion databases - structured tables with cu
    - Calls: `GET /collections/{collectionName}/items` on Craft API
 
 6. **createCollectionItems** - Add new items to a collection
-   - Operates on the current document (set via fetchBlocks)
+   - `document` (required): Document name (e.g., "MCP test")
    - `collectionName` (required): Name of the collection
    - `items` (required): Array of items with `title` and `properties` (schema-specific)
    - `allowNewSelectOptions` (optional, default: false): Allow creating new select field options
@@ -112,7 +110,7 @@ Collections in Craft are similar to Notion databases - structured tables with cu
    - Calls: `POST /collections/{collectionName}/items` on Craft API
 
 7. **updateCollectionItems** - Update existing items in a collection
-   - Operates on the current document (set via fetchBlocks)
+   - `document` (required): Document name (e.g., "MCP test")
    - `collectionName` (required): Name of the collection
    - `itemsToUpdate` (required): Array of items with `id`, optional `title`, and optional `properties`
    - `allowNewSelectOptions` (optional, default: false): Allow creating new select field options
@@ -176,14 +174,13 @@ npm run format
 
 ## Cloudflare Configuration
 
-The server uses Durable Objects for stateful MCP sessions:
+The server uses Durable Objects for MCP sessions:
 - **Binding Name**: `MCP`
 - **Class Name**: `MyMCP`
 - **Compatibility Flags**: `nodejs_compat`
 
-Each MCP client session gets its own Durable Object instance with persistent state:
-- Document mappings (loaded from `CRAFT_DOCUMENTS` env var)
-- Current working document (set by `fetchBlocks` tool)
+Each MCP client session gets its own Durable Object instance that loads:
+- Document mappings from `CRAFT_DOCUMENTS` environment variable
 
 **Environment Variables:**
 - `CRAFT_DOCUMENTS` - JSON mapping of document names to base URLs (configured in wrangler.toml)

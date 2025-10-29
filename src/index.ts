@@ -25,8 +25,6 @@ export class MyMCP extends McpAgent {
 
 	// Document configuration from environment variables
 	private documents: Record<string, string> = {};
-	// Currently selected document for operations
-	private currentDocument: string | null = null;
 
 	async init() {
 		// Parse document mappings from environment variable
@@ -38,10 +36,7 @@ export class MyMCP extends McpAgent {
 			this.documents = {};
 		}
 
-		// Load current document from storage
-		this.currentDocument = await this.ctx.storage.get<string>("currentDocument") || null;
-
-		// 0. listDocuments - Show available documents and current selection
+		// 0. listDocuments - Show available documents
 		this.server.tool(
 			"listDocuments",
 			{},
@@ -62,21 +57,14 @@ export class MyMCP extends McpAgent {
 
 					let text = `Available documents (${documentNames.length}):\n\n`;
 					for (const name of documentNames) {
-						const indicator = name === this.currentDocument ? "→ " : "  ";
-						text += `${indicator}${name}\n`;
-					}
-
-					if (this.currentDocument) {
-						text += `\nCurrent document: ${this.currentDocument}`;
-					} else {
-						text += `\nNo document selected. Use fetchBlocks with a document name to set the working document.`;
+						text += `- ${name}\n`;
 					}
 
 					return {
 						content: [
 							{
 								type: "text",
-								text: text,
+								text: text.trim(),
 							},
 						],
 					};
@@ -95,10 +83,12 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 1. insertText - Insert markdown content into the document
-		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"insertText",
 			{
+				document: z
+					.string()
+					.describe("Name of the document to insert into (e.g., 'MCP test')."),
 				markdown: z
 					.string()
 					.describe("Markdown content to insert. Supports headings, lists, text formatting, blockquotes, etc."),
@@ -113,12 +103,24 @@ export class MyMCP extends McpAgent {
 					.boolean()
 					.optional()
 					.default(false)
-					.describe("If true, wraps content in a new page block (first heading becomes page title). Operates on the current document (set via fetchBlocks)."),
+					.describe("If true, wraps content in a new page block (first heading becomes page title)."),
 			},
-			async ({ markdown, parent, position, subpage }) => {
+			async ({ document, markdown, parent, position, subpage }) => {
 				try {
-					// Get current document URL
-					const documentUrl = this.getCurrentDocumentUrl();
+					// Get document URL
+					const documentUrl = this.documents[document];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${document}' not found. Available documents: ${available}`,
+								},
+							],
+							isError: true,
+						};
+					}
 					if (subpage) {
 						// Two-step process for creating subpages with content:
 						// Step 1: Create the page with just the title
@@ -289,18 +291,32 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 2. deleteText - Delete a page or heading and all its content
-		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"deleteText",
 			{
+				document: z
+					.string()
+					.describe("Name of the document to delete from (e.g., 'MCP test')."),
 				id: z
 					.string()
-					.describe("ID of the page or heading to delete. WARNING: Deletes entire section including nested content. Operates on the current document (set via fetchBlocks)."),
+					.describe("ID of the page or heading to delete. WARNING: Deletes entire section including nested content."),
 			},
-			async ({ id }) => {
+			async ({ document, id }) => {
 				try {
-					// Get current document URL
-					const documentUrl = this.getCurrentDocumentUrl();
+					// Get document URL
+					const documentUrl = this.documents[document];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${document}' not found. Available documents: ${available}`,
+								},
+							],
+							isError: true,
+						};
+					}
 
 					const response = await fetch(`${documentUrl}/blocks`, {
 						method: "DELETE",
@@ -345,14 +361,12 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 3. fetchBlocks - Read document content with IDs embedded
-		// IMPORTANT: This tool also sets the working document for subsequent operations
 		this.server.tool(
 			"fetchBlocks",
 			{
 				document: z
 					.string()
-					.optional()
-					.describe("Name of the document to fetch (e.g., 'MCP test'). If specified, also sets this as the working document for subsequent insertText, deleteText, and search operations. If omitted, uses the current working document."),
+					.describe("Name of the document to fetch (e.g., 'MCP test')."),
 				id: z
 					.string()
 					.optional()
@@ -365,40 +379,19 @@ export class MyMCP extends McpAgent {
 			},
 			async ({ document, id, maxDepth }) => {
 				try {
-					// Determine which document to use
-					let targetDocument = document || this.currentDocument;
-
-					if (!targetDocument) {
-						return {
-							content: [
-								{
-									type: "text",
-									text: "No document specified and no current document set. Please specify a document name or use listDocuments to see available documents.",
-								},
-							],
-							isError: true,
-						};
-					}
-
 					// Check if document exists
-					const documentUrl = this.documents[targetDocument];
+					const documentUrl = this.documents[document];
 					if (!documentUrl) {
 						const available = Object.keys(this.documents).join(", ");
 						return {
 							content: [
 								{
 									type: "text",
-									text: `Document '${targetDocument}' not found. Available documents: ${available}. Use listDocuments to see all options.`,
+									text: `Document '${document}' not found. Available documents: ${available}`,
 								},
 							],
 							isError: true,
 						};
-					}
-
-					// If document was explicitly specified, set it as current
-					if (document) {
-						this.currentDocument = targetDocument;
-						await this.ctx.storage.put("currentDocument", targetDocument);
 					}
 
 					const params = new URLSearchParams();
@@ -429,16 +422,11 @@ export class MyMCP extends McpAgent {
 					const blocks = (await response.json()) as any[];
 					const markdown = this.convertBlocksToMarkdown(blocks);
 
-					let statusNote = "";
-					if (document) {
-						statusNote = `\n\n[Working document set to: ${targetDocument}]`;
-					}
-
 					return {
 						content: [
 							{
 								type: "text",
-								text: markdown + statusNote,
+								text: markdown,
 							},
 						],
 					};
@@ -457,13 +445,15 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 4. search - Search within the document
-		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"search",
 			{
+				document: z
+					.string()
+					.describe("Name of the document to search in (e.g., 'MCP test')."),
 				pattern: z
 					.string()
-					.describe("Search pattern (supports regex). Operates on the current document (set via fetchBlocks)."),
+					.describe("Search pattern (supports regex)."),
 				caseSensitive: z
 					.boolean()
 					.optional()
@@ -480,10 +470,22 @@ export class MyMCP extends McpAgent {
 					.default(2)
 					.describe("Number of context blocks after match (default: 2)."),
 			},
-			async ({ pattern, caseSensitive, beforeBlockCount, afterBlockCount }) => {
+			async ({ document, pattern, caseSensitive, beforeBlockCount, afterBlockCount }) => {
 				try {
-					// Get current document URL
-					const documentUrl = this.getCurrentDocumentUrl();
+					// Get document URL
+					const documentUrl = this.documents[document];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${document}' not found. Available documents: ${available}`,
+								},
+							],
+							isError: true,
+						};
+					}
 
 					const params = new URLSearchParams();
 					params.set("pattern", pattern);
@@ -540,10 +542,12 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 5. getCollectionItems - Retrieve items from a collection
-		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"getCollectionItems",
 			{
+				document: z
+					.string()
+					.describe("Name of the document containing the collection (e.g., 'MCP test')."),
 				collectionName: z
 					.string()
 					.describe("Name of the collection to retrieve items from (e.g., 'drafts', 'notes', 'tasks')."),
@@ -558,10 +562,22 @@ export class MyMCP extends McpAgent {
 					.default(false)
 					.describe("If true, returns contentMarkdown field instead of nested content blocks."),
 			},
-			async ({ collectionName, maxDepth, useMarkdown }) => {
+			async ({ document, collectionName, maxDepth, useMarkdown }) => {
 				try {
-					// Get current document URL
-					const documentUrl = this.getCurrentDocumentUrl();
+					// Get document URL
+					const documentUrl = this.documents[document];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${document}' not found. Available documents: ${available}`,
+								},
+							],
+							isError: true,
+						};
+					}
 
 					const params = new URLSearchParams();
 					if (maxDepth !== undefined) params.set("maxDepth", maxDepth.toString());
@@ -619,10 +635,12 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 6. createCollectionItems - Add new items to a collection
-		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"createCollectionItems",
 			{
+				document: z
+					.string()
+					.describe("Name of the document containing the collection (e.g., 'MCP test')."),
 				collectionName: z
 					.string()
 					.describe("Name of the collection to add items to (e.g., 'drafts', 'notes', 'tasks')."),
@@ -645,10 +663,22 @@ export class MyMCP extends McpAgent {
 					.default(false)
 					.describe("If true, allows creating new select options if they don't exist in the schema."),
 			},
-			async ({ collectionName, items, allowNewSelectOptions }) => {
+			async ({ document, collectionName, items, allowNewSelectOptions }) => {
 				try {
-					// Get current document URL
-					const documentUrl = this.getCurrentDocumentUrl();
+					// Get document URL
+					const documentUrl = this.documents[document];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${document}' not found. Available documents: ${available}`,
+								},
+							],
+							isError: true,
+						};
+					}
 
 					const response = await fetch(
 						`${documentUrl}/collections/${collectionName}/items`,
@@ -701,10 +731,12 @@ export class MyMCP extends McpAgent {
 		);
 
 		// 7. updateCollectionItems - Update existing items in a collection
-		// Operates on the current document set by fetchBlocks
 		this.server.tool(
 			"updateCollectionItems",
 			{
+				document: z
+					.string()
+					.describe("Name of the document containing the collection (e.g., 'MCP test')."),
 				collectionName: z
 					.string()
 					.describe("Name of the collection to update items in (e.g., 'drafts', 'notes', 'tasks')."),
@@ -728,10 +760,22 @@ export class MyMCP extends McpAgent {
 					.default(false)
 					.describe("If true, allows creating new select options if they don't exist in the schema."),
 			},
-			async ({ collectionName, itemsToUpdate, allowNewSelectOptions }) => {
+			async ({ document, collectionName, itemsToUpdate, allowNewSelectOptions }) => {
 				try {
-					// Get current document URL
-					const documentUrl = this.getCurrentDocumentUrl();
+					// Get document URL
+					const documentUrl = this.documents[document];
+					if (!documentUrl) {
+						const available = Object.keys(this.documents).join(", ");
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Document '${document}' not found. Available documents: ${available}`,
+								},
+							],
+							isError: true,
+						};
+					}
 
 					const response = await fetch(
 						`${documentUrl}/collections/${collectionName}/items`,
@@ -782,28 +826,6 @@ export class MyMCP extends McpAgent {
 				}
 			},
 		);
-	}
-
-	/**
-	 * Get the base URL for the current document
-	 * @throws Error if no document is selected or document not found
-	 */
-	private getCurrentDocumentUrl(): string {
-		if (!this.currentDocument) {
-			throw new Error(
-				"No document selected. Use fetchBlocks with a document name to set the working document, or use listDocuments to see available documents.",
-			);
-		}
-
-		const documentUrl = this.documents[this.currentDocument];
-		if (!documentUrl) {
-			const available = Object.keys(this.documents).join(", ");
-			throw new Error(
-				`Current document '${this.currentDocument}' not found in configuration. Available documents: ${available}`,
-			);
-		}
-
-		return documentUrl;
 	}
 
 	/**
