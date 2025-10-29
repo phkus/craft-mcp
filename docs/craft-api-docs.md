@@ -1,4 +1,4 @@
-# Craft – API for MCP test
+# Craft – API for 1.2 Early MAB
 
 **Version:** 1.0.0
 
@@ -27,8 +27,8 @@ Always verify rollback operations work before considering a test complete.
 
 ## Servers
 
-- https://connect.craft.do/links/AcHPMgNXYdR/api/v1
-  API Server for MCP test
+- https://connect.craft.do/links/IXeRy89tG13/api/v1
+  API Server for 1.2 Early MAB
 
 ---
 
@@ -705,6 +705,374 @@ Search in deeply nested structure with beforeBlockCount=2, afterBlockCount=1
         "markdown": "Password hashing should use bcrypt with salt rounds >= 12"
       }
     ]
+  }
+]
+```
+
+---
+
+# List Drafts
+
+`GET /collections/drafts/items`
+
+Retrieve all drafts items. Backend document changes may cause 404 errors - handle gracefully.
+
+**Content Format:** Use Accept header to control content format:
+- `Accept: application/json` (default) - Returns items with nested content as block arrays
+- `Accept: application/json; content=markdown` - Returns items with contentMarkdown field containing the item's markdown representation
+
+## Parameters
+
+- **maxDepth** (query): number
+  The maximum depth of nested content to fetch for each collection item. Default is -1 (all descendants). With a depth of 0, only the item properties are fetched without nested content.
+
+## Responses
+
+### 200
+Drafts items retrieved successfully
+
+**Content-Type:** `application/json`
+
+
+**Example: defaultFormat**
+
+Default format with nested blocks
+
+```json
+[
+  {
+    "id": "3",
+    "title": "Example Title",
+    "properties": {},
+    "content": [
+      {
+        "id": "4",
+        "type": "text",
+        "markdown": "Example content in the item"
+      }
+    ]
+  }
+]
+```
+
+**Example: markdownFormat**
+
+Markdown format (Accept: application/json; content=markdown)
+
+```json
+[
+  {
+    "id": "3",
+    "title": "Example Title",
+    "properties": {},
+    "contentMarkdown": "Example content in the item"
+  }
+]
+```
+
+---
+
+# Create Drafts
+
+`POST /collections/drafts/items`
+
+Add new drafts items. Schema changes may cause validation errors.
+
+## Request Body
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "items": [
+    {
+      "title": "string",
+      "properties": {
+        "status": "todo"
+      }
+    }
+  ],
+  "allowNewSelectOptions": false
+}
+```
+
+## Responses
+
+### 200
+Drafts items created successfully
+
+**Content-Type:** `application/json`
+
+```json
+[
+  {
+    "title": "Title 1",
+    "properties": {
+      "status": "todo"
+    }
+  }
+]
+```
+
+---
+
+# Remove Drafts
+
+`DELETE /collections/drafts/items`
+
+Delete drafts items. Items may already be deleted, causing partial success.
+
+## Request Body
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "idsToDelete": [
+    "1",
+    "2"
+  ]
+}
+```
+
+## Responses
+
+### 200
+Drafts items deleted successfully
+
+**Content-Type:** `application/json`
+
+```json
+[
+  "string"
+]
+```
+
+---
+
+# Modify Drafts
+
+`PUT /collections/drafts/items`
+
+Update existing drafts items. Item deletion or schema changes may cause errors.
+
+## Request Body
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "itemsToUpdate": [
+    {
+      "id": "string",
+      "title": "string",
+      "properties": {
+        "status": "todo"
+      }
+    }
+  ],
+  "allowNewSelectOptions": false
+}
+```
+
+## Responses
+
+### 200
+Drafts items updated successfully
+
+**Content-Type:** `application/json`
+
+```json
+[
+  {
+    "title": "Title 1",
+    "properties": {
+      "status": "todo"
+    }
+  }
+]
+```
+
+---
+
+# List Notes
+
+`GET /collections/notes/items`
+
+Retrieve all notes items. Backend document changes may cause 404 errors - handle gracefully.
+
+**Content Format:** Use Accept header to control content format:
+- `Accept: application/json` (default) - Returns items with nested content as block arrays
+- `Accept: application/json; content=markdown` - Returns items with contentMarkdown field containing the item's markdown representation
+
+## Parameters
+
+- **maxDepth** (query): number
+  The maximum depth of nested content to fetch for each collection item. Default is -1 (all descendants). With a depth of 0, only the item properties are fetched without nested content.
+
+## Responses
+
+### 200
+Notes items retrieved successfully
+
+**Content-Type:** `application/json`
+
+
+**Example: defaultFormat**
+
+Default format with nested blocks
+
+```json
+[
+  {
+    "id": "3",
+    "title": "Example Title",
+    "properties": {},
+    "content": [
+      {
+        "id": "4",
+        "type": "text",
+        "markdown": "Example content in the item"
+      }
+    ]
+  }
+]
+```
+
+**Example: markdownFormat**
+
+Markdown format (Accept: application/json; content=markdown)
+
+```json
+[
+  {
+    "id": "3",
+    "title": "Example Title",
+    "properties": {},
+    "contentMarkdown": "Example content in the item"
+  }
+]
+```
+
+---
+
+# Create Notes
+
+`POST /collections/notes/items`
+
+Add new notes items. Schema changes may cause validation errors.
+
+## Request Body
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "items": [
+    {
+      "title": "string",
+      "properties": {
+        "status": "to_write"
+      }
+    }
+  ],
+  "allowNewSelectOptions": false
+}
+```
+
+## Responses
+
+### 200
+Notes items created successfully
+
+**Content-Type:** `application/json`
+
+```json
+[
+  {
+    "title": "Title 1",
+    "properties": {
+      "status": "to_write"
+    }
+  }
+]
+```
+
+---
+
+# Remove Notes
+
+`DELETE /collections/notes/items`
+
+Delete notes items. Items may already be deleted, causing partial success.
+
+## Request Body
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "idsToDelete": [
+    "1",
+    "2"
+  ]
+}
+```
+
+## Responses
+
+### 200
+Notes items deleted successfully
+
+**Content-Type:** `application/json`
+
+```json
+[
+  "string"
+]
+```
+
+---
+
+# Modify Notes
+
+`PUT /collections/notes/items`
+
+Update existing notes items. Item deletion or schema changes may cause errors.
+
+## Request Body
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "itemsToUpdate": [
+    {
+      "id": "string",
+      "title": "string",
+      "properties": {
+        "status": "to_write"
+      }
+    }
+  ],
+  "allowNewSelectOptions": false
+}
+```
+
+## Responses
+
+### 200
+Notes items updated successfully
+
+**Content-Type:** `application/json`
+
+```json
+[
+  {
+    "title": "Title 1",
+    "properties": {
+      "status": "to_write"
+    }
   }
 ]
 ```

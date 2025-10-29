@@ -538,6 +538,250 @@ export class MyMCP extends McpAgent {
 				}
 			},
 		);
+
+		// 5. getCollectionItems - Retrieve items from a collection
+		// Operates on the current document set by fetchBlocks
+		this.server.tool(
+			"getCollectionItems",
+			{
+				collectionName: z
+					.string()
+					.describe("Name of the collection to retrieve items from (e.g., 'drafts', 'notes', 'tasks')."),
+				maxDepth: z
+					.number()
+					.optional()
+					.default(-1)
+					.describe("Maximum depth of nested content to fetch for each item. Default -1 (all), 0 (only properties)."),
+				useMarkdown: z
+					.boolean()
+					.optional()
+					.default(false)
+					.describe("If true, returns contentMarkdown field instead of nested content blocks."),
+			},
+			async ({ collectionName, maxDepth, useMarkdown }) => {
+				try {
+					// Get current document URL
+					const documentUrl = this.getCurrentDocumentUrl();
+
+					const params = new URLSearchParams();
+					if (maxDepth !== undefined) params.set("maxDepth", maxDepth.toString());
+
+					const headers: Record<string, string> = {
+						Accept: useMarkdown
+							? "application/json; content=markdown"
+							: "application/json",
+					};
+
+					const response = await fetch(
+						`${documentUrl}/collections/${collectionName}/items?${params.toString()}`,
+						{
+							method: "GET",
+							headers: headers,
+						},
+					);
+
+					if (!response.ok) {
+						const errorText = await response.text();
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Failed to get collection items: Craft API error (${response.status}): ${errorText}. Make sure the collection '${collectionName}' exists in the current document.`,
+								},
+							],
+							isError: true,
+						};
+					}
+
+					const items = (await response.json()) as any[];
+					const formatted = JSON.stringify(items, null, 2);
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Found ${items.length} item(s) in collection '${collectionName}':\n\n${formatted}`,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Failed to get collection items: ${error instanceof Error ? error.message : String(error)}`,
+							},
+						],
+						isError: true,
+					};
+				}
+			},
+		);
+
+		// 6. createCollectionItems - Add new items to a collection
+		// Operates on the current document set by fetchBlocks
+		this.server.tool(
+			"createCollectionItems",
+			{
+				collectionName: z
+					.string()
+					.describe("Name of the collection to add items to (e.g., 'drafts', 'notes', 'tasks')."),
+				items: z
+					.array(
+						z.object({
+							title: z.string().describe("Title of the item"),
+							properties: z
+								.record(z.any())
+								.optional()
+								.describe(
+									"Properties object matching the collection schema (e.g., {status: 'todo', priority: 'high'}). Schema depends on the collection.",
+								),
+						}),
+					)
+					.describe("Array of items to create in the collection."),
+				allowNewSelectOptions: z
+					.boolean()
+					.optional()
+					.default(false)
+					.describe("If true, allows creating new select options if they don't exist in the schema."),
+			},
+			async ({ collectionName, items, allowNewSelectOptions }) => {
+				try {
+					// Get current document URL
+					const documentUrl = this.getCurrentDocumentUrl();
+
+					const response = await fetch(
+						`${documentUrl}/collections/${collectionName}/items`,
+						{
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								items: items,
+								allowNewSelectOptions: allowNewSelectOptions,
+							}),
+						},
+					);
+
+					if (!response.ok) {
+						const errorText = await response.text();
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Failed to create collection items: Craft API error (${response.status}): ${errorText}. Check that properties match the collection schema and that the collection '${collectionName}' exists.`,
+								},
+							],
+							isError: true,
+						};
+					}
+
+					const createdItems = (await response.json()) as any[];
+					const formatted = JSON.stringify(createdItems, null, 2);
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Successfully created ${createdItems.length} item(s) in collection '${collectionName}':\n\n${formatted}`,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Failed to create collection items: ${error instanceof Error ? error.message : String(error)}`,
+							},
+						],
+						isError: true,
+					};
+				}
+			},
+		);
+
+		// 7. updateCollectionItems - Update existing items in a collection
+		// Operates on the current document set by fetchBlocks
+		this.server.tool(
+			"updateCollectionItems",
+			{
+				collectionName: z
+					.string()
+					.describe("Name of the collection to update items in (e.g., 'drafts', 'notes', 'tasks')."),
+				itemsToUpdate: z
+					.array(
+						z.object({
+							id: z.string().describe("ID of the item to update"),
+							title: z.string().optional().describe("New title for the item"),
+							properties: z
+								.record(z.any())
+								.optional()
+								.describe(
+									"Properties to update (e.g., {status: 'done'}). Only specified properties are updated.",
+								),
+						}),
+					)
+					.describe("Array of items to update in the collection."),
+				allowNewSelectOptions: z
+					.boolean()
+					.optional()
+					.default(false)
+					.describe("If true, allows creating new select options if they don't exist in the schema."),
+			},
+			async ({ collectionName, itemsToUpdate, allowNewSelectOptions }) => {
+				try {
+					// Get current document URL
+					const documentUrl = this.getCurrentDocumentUrl();
+
+					const response = await fetch(
+						`${documentUrl}/collections/${collectionName}/items`,
+						{
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								itemsToUpdate: itemsToUpdate,
+								allowNewSelectOptions: allowNewSelectOptions,
+							}),
+						},
+					);
+
+					if (!response.ok) {
+						const errorText = await response.text();
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Failed to update collection items: Craft API error (${response.status}): ${errorText}. Check that item IDs exist and properties match the collection schema.`,
+								},
+							],
+							isError: true,
+						};
+					}
+
+					const updatedItems = (await response.json()) as any[];
+					const formatted = JSON.stringify(updatedItems, null, 2);
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Successfully updated ${updatedItems.length} item(s) in collection '${collectionName}':\n\n${formatted}`,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Failed to update collection items: ${error instanceof Error ? error.message : String(error)}`,
+							},
+						],
+						isError: true,
+					};
+				}
+			},
+		);
 	}
 
 	/**

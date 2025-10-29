@@ -49,9 +49,11 @@ The server supports multiple Craft documents configured via environment variable
 **Workflow:**
 1. Call `listDocuments` to see available documents
 2. Call `fetchBlocks` with a document name to set the working document
-3. Use `insertText`, `deleteText`, and `search` on the current document
+3. Use `insertText`, `deleteText`, `search`, and collection tools on the current document
 
 ### Tools
+
+#### Document & Block Tools
 
 0. **listDocuments** - Show available documents and current selection
    - No parameters
@@ -88,6 +90,34 @@ The server supports multiple Craft documents configured via environment variable
    - `afterBlockCount` (optional, default: 2): Context blocks after match
    - Returns: Formatted results with hierarchical path and context
    - Calls: `GET /blocks/search` on Craft API
+
+#### Collection Tools
+
+Collections in Craft are similar to Notion databases - structured tables with custom schemas. These tools work generically with any collection schema.
+
+5. **getCollectionItems** - Retrieve items from a collection
+   - Operates on the current document (set via fetchBlocks)
+   - `collectionName` (required): Name of the collection (e.g., "drafts", "notes", "tasks")
+   - `maxDepth` (optional, default: -1): Maximum depth of nested content (-1 for all, 0 for properties only)
+   - `useMarkdown` (optional, default: false): If true, returns `contentMarkdown` field instead of nested blocks
+   - Returns: JSON array of collection items with `id`, `title`, `properties`, and `content`/`contentMarkdown`
+   - Calls: `GET /collections/{collectionName}/items` on Craft API
+
+6. **createCollectionItems** - Add new items to a collection
+   - Operates on the current document (set via fetchBlocks)
+   - `collectionName` (required): Name of the collection
+   - `items` (required): Array of items with `title` and `properties` (schema-specific)
+   - `allowNewSelectOptions` (optional, default: false): Allow creating new select field options
+   - Returns: JSON array of created items
+   - Calls: `POST /collections/{collectionName}/items` on Craft API
+
+7. **updateCollectionItems** - Update existing items in a collection
+   - Operates on the current document (set via fetchBlocks)
+   - `collectionName` (required): Name of the collection
+   - `itemsToUpdate` (required): Array of items with `id`, optional `title`, and optional `properties`
+   - `allowNewSelectOptions` (optional, default: false): Allow creating new select field options
+   - Returns: JSON array of updated items
+   - Calls: `PUT /collections/{collectionName}/items` on Craft API
 
 ## Craft API Configuration
 
