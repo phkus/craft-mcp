@@ -2,6 +2,7 @@ name = "craft-mcp"
 main = "src/index.ts"
 compatibility_date = "2025-01-23"
 compatibility_flags = ["nodejs_compat"]
+keep_vars = true
 
 # Durable Object binding for the MCP Agent
 [[durable_objects.bindings]]
