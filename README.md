@@ -1,50 +1,166 @@
-# Building a Remote MCP Server on Cloudflare (Without Auth)
+# Craft MCP Server
 
-This example allows you to deploy a remote MCP server that doesn't require authentication on Cloudflare Workers. 
+A remote [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [Craft](https://www.craft.do/) document management, deployed on Cloudflare Workers. This server enables AI assistants like Claude to read, write, search, and manage Craft documents and collections.
 
-## Get started: 
+## Features
 
-[![Deploy to Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-authless)
+- **Document Management**: Read, write, search, and delete content in Craft documents
+- **Collection Support**: Work with Craft collections (similar to Notion databases)
+- **Multi-Document**: Support for multiple Craft documents via configuration
+- **Serverless**: Deployed on Cloudflare Workers with Durable Objects
+- **No Auth Required**: Simple setup without authentication (secured via document link IDs)
 
-This will deploy your MCP server to a URL like: `remote-mcp-server-authless.<your-account>.workers.dev/sse`
+## Setup
 
-Alternatively, you can use the command line below to get the remote MCP Server created on your local machine:
+### 1. Clone and Install
+
 ```bash
-npm create cloudflare@latest -- my-mcp-server --template=cloudflare/ai/demos/remote-mcp-authless
+git clone <your-repo-url>
+cd craft-mcp
+npm install
 ```
 
-## Customizing your MCP Server
+### 2. Configure Craft Documents
 
-To add your own [tools](https://developers.cloudflare.com/agents/model-context-protocol/tools/) to the MCP server, define each tool inside the `init()` method of `src/index.ts` using `this.server.tool(...)`. 
+#### Get Your Craft Document Link IDs
 
-## Connect to Cloudflare AI Playground
+1. Open your Craft document
+2. Click **Share** → **Enable API**
+3. Copy the link ID from the generated URL
+   - Example: `AcHPMgNXYdR` from `https://connect.craft.do/links/AcHPMgNXYdR`
 
-You can connect to your MCP server from the Cloudflare AI Playground, which is a remote MCP client:
+#### For Local Development
 
-1. Go to https://playground.ai.cloudflare.com/
-2. Enter your deployed MCP server URL (`remote-mcp-server-authless.<your-account>.workers.dev/sse`)
-3. You can now use your MCP tools directly from the playground!
+Create a `.dev.vars` file in the project root:
 
-## Connect Claude Desktop to your MCP server
+```bash
+CRAFT_DOCUMENTS={"My Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}
+```
 
-You can also connect to your remote MCP server from local MCP clients, by using the [mcp-remote proxy](https://www.npmjs.com/package/mcp-remote). 
+You can add multiple documents:
 
-To connect to your MCP server from Claude Desktop, follow [Anthropic's Quickstart](https://modelcontextprotocol.io/quickstart/user) and within Claude Desktop go to Settings > Developer > Edit Config.
+```bash
+CRAFT_DOCUMENTS={"Notes": "https://connect.craft.do/links/ABC123/api/v1", "Tasks": "https://connect.craft.do/links/XYZ789/api/v1"}
+```
 
-Update with this configuration:
+**Important**: `.dev.vars` is gitignored and contains your private document links.
+
+### 3. Run Locally
+
+```bash
+npm run dev
+```
+
+Your MCP server will be available at:
+- `http://localhost:8787/mcp` (recommended - streamable HTTP transport)
+- `http://localhost:8787/sse` (legacy - Server-Sent Events)
+
+### 4. Deploy to Cloudflare
+
+#### Set Up Production Variables
+
+Do **NOT** commit your real document links to `wrangler.toml`. Instead, set them via Cloudflare Dashboard:
+
+1. Deploy your worker: `npm run deploy` (first time only)
+2. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → Workers & Pages → Your Worker → Settings → Variables
+3. Add environment variable:
+   - **Name**: `CRAFT_DOCUMENTS`
+   - **Value**: `{"My Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}`
+
+**OR** use the Wrangler CLI:
+
+```bash
+wrangler secret put CRAFT_DOCUMENTS
+# Then paste your JSON when prompted
+```
+
+#### Deploy via GitHub (Recommended)
+
+For automatic deployments:
+
+1. Connect your GitHub repo to Cloudflare (Workers & Pages → Create → Connect to Git)
+2. Push changes to `main` branch
+3. Cloudflare automatically deploys
+
+**Note**: The `keep_vars = true` setting in `wrangler.toml` ensures your dashboard variables won't be overwritten during deployment.
+
+## Connect to Claude Desktop
+
+Use the [mcp-remote proxy](https://www.npmjs.com/package/mcp-remote) to connect Claude Desktop to your MCP server.
+
+Edit your Claude Desktop config (Settings → Developer → Edit Config):
 
 ```json
 {
   "mcpServers": {
-    "calculator": {
+    "craft": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "http://localhost:8787/sse"  // or remote-mcp-server-authless.your-account.workers.dev/sse
+        "http://localhost:8787/mcp"
       ]
     }
   }
 }
 ```
 
-Restart Claude and you should see the tools become available. 
+For production, replace `http://localhost:8787/mcp` with your deployed worker URL:
+`https://craft-mcp.<your-account>.workers.dev/mcp`
+
+Restart Claude Desktop and the Craft tools will become available.
+
+## Available Tools
+
+- `listDocuments` - Show configured documents
+- `fetchBlocks` - Read document content with embedded IDs
+- `insertText` - Insert markdown content into documents
+- `deleteText` - Delete pages or headings
+- `search` - Search within documents with regex support
+- `getCollectionItems` - Retrieve items from Craft collections
+- `createCollectionItems` - Add items to collections
+- `updateCollectionItems` - Update existing collection items
+
+See [CLAUDE.md](./CLAUDE.md) for detailed tool documentation.
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run locally
+npm run dev
+
+# Type check
+npm run type-check
+
+# Lint and format
+npm run lint:fix
+npm run format
+
+# Deploy to Cloudflare
+npm run deploy
+```
+
+## Project Structure
+
+```
+craft-mcp/
+├── src/
+│   └── index.ts          # MCP server implementation
+├── docs/                 # API documentation
+├── wrangler.toml         # Cloudflare Workers config (placeholders only)
+├── .dev.vars            # Local env vars (gitignored, create this)
+└── package.json
+```
+
+## Security Notes
+
+- Document link IDs provide full API access to your Craft documents
+- Keep `.dev.vars` and production environment variables private
+- Never commit real link IDs to version control
+- The repository includes placeholders only in `wrangler.toml`
+
+## License
+
+MIT 
