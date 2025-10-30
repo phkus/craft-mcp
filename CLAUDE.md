@@ -121,18 +121,42 @@ Collections in Craft are similar to Notion databases - structured tables with cu
 
 ### Document Setup
 
-Documents are configured in `wrangler.toml` as environment variables:
+Documents are configured via the `CRAFT_DOCUMENTS` environment variable. The configuration differs between local development and production:
 
-```toml
-[vars]
-CRAFT_DOCUMENTS = '{"MCP test": "https://connect.craft.do/links/AcHPMgNXYdR/api/v1", "Possible Futures": "https://connect.craft.do/links/HmHPcIx86Sp/api/v1"}'
+**Local Development (.dev.vars):**
+```bash
+CRAFT_DOCUMENTS={"MCP test": "https://connect.craft.do/links/AcHPMgNXYdR/api/v1", "Possible Futures": "https://connect.craft.do/links/HmHPcIx86Sp/api/v1"}
 ```
 
-**To add a new document:**
-1. In Craft app, enable API for the document (Share → Enable API)
-2. Copy the link ID from the generated URL
-3. Add to `CRAFT_DOCUMENTS` JSON with format: `"Document Name": "https://connect.craft.do/links/{LINK_ID}/api/v1"`
-4. Commit and push to GitHub (Cloudflare will auto-deploy)
+**Production (wrangler.toml - placeholder only):**
+```toml
+[vars]
+CRAFT_DOCUMENTS = '{"Example Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}'
+```
+
+**Setup Instructions:**
+
+1. **Get Craft Document Link IDs:**
+   - In Craft app, open your document
+   - Go to Share → Enable API
+   - Copy the link ID from the generated URL (e.g., `AcHPMgNXYdR` from `https://connect.craft.do/links/AcHPMgNXYdR`)
+
+2. **For Local Development:**
+   - Create a `.dev.vars` file in the project root (already gitignored)
+   - Add your actual document links in the format shown above
+   - Run `npm run dev` to test locally
+
+3. **For Production Deployment:**
+   - Go to Cloudflare Dashboard → Workers & Pages → Your Worker → Settings → Variables
+   - Add environment variable `CRAFT_DOCUMENTS` with your actual JSON
+   - OR use CLI: `wrangler secret put CRAFT_DOCUMENTS` (then paste your JSON)
+   - The `keep_vars = true` setting in wrangler.toml ensures deployments won't override your dashboard settings
+
+4. **To Add a New Document:**
+   - Get the link ID as described in step 1
+   - Update your `.dev.vars` file for local testing
+   - Update the environment variable in Cloudflare Dashboard for production
+   - Format: `"Document Name": "https://connect.craft.do/links/{LINK_ID}/api/v1"`
 
 ### API Endpoints Used
 

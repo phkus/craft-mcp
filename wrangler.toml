@@ -18,5 +18,8 @@ new_sqlite_classes = ["MyMCP"]
 # Add your Craft document links here in JSON format
 # To get a link ID: In Craft app, enable API for a document and copy the link
 # The link format is: https://connect.craft.do/links/{LINK_ID}/api/v1
+#
+# For local development: Create a .dev.vars file with your actual values
+# For production: Set CRAFT_DOCUMENTS via Cloudflare Dashboard (Workers → Settings → Variables)
 [vars]
-CRAFT_DOCUMENTS = '{"MCP test": "https://connect.craft.do/links/AcHPMgNXYdR/api/v1", "Possible Futures": "https://connect.craft.do/links/HmHPcIx86Sp/api/v1"}'
+CRAFT_DOCUMENTS = '{"Example Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}'
