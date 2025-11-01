@@ -551,6 +551,10 @@ export class MyMCP extends McpAgent {
 				collectionName: z
 					.string()
 					.describe("Name of the collection (case-insensitive, e.g., 'Sources', 'drafts', 'notes'). Use readDocument first to discover available collections."),
+				filter: z
+					.record(z.any())
+					.optional()
+					.describe("Filter items by property values (e.g., {from_year: '1971', box_nr: 45}). Only items matching all filter criteria are returned."),
 				maxDepth: z
 					.number()
 					.optional()
@@ -562,7 +566,7 @@ export class MyMCP extends McpAgent {
 					.default(false)
 					.describe("If true, returns flat contentMarkdown field instead of nested blocks. Useful for collections with short text content."),
 			},
-			async ({ document, collectionName, maxDepth, useMarkdown }) => {
+			async ({ document, collectionName, filter, maxDepth, useMarkdown }) => {
 				try {
 					// Get document URL
 					const documentUrl = this.documents[document];
@@ -613,14 +617,30 @@ export class MyMCP extends McpAgent {
 					}
 
 					const responseData = (await response.json()) as any;
-					const items = responseData.items || responseData;
+					let items = responseData.items || responseData;
+
+					// Apply filtering if filter parameter is provided
+					if (filter && Object.keys(filter).length > 0) {
+						items = items.filter((item: any) => {
+							// Check if all filter criteria match
+							return Object.entries(filter).every(([key, value]) => {
+								const itemValue = item.properties?.[key];
+								// Convert both to strings for comparison to handle different types
+								return String(itemValue) === String(value);
+							});
+						});
+					}
+
 					const formatted = JSON.stringify(items, null, 2);
+					const filterNote = filter && Object.keys(filter).length > 0
+						? ` (filtered by ${Object.entries(filter).map(([k, v]) => `${k}=${v}`).join(', ')})`
+						: '';
 
 					return {
 						content: [
 							{
 								type: "text",
-								text: `Found ${items.length} item(s) in collection '${collectionName}':\n\n${formatted}`,
+								text: `Found ${items.length} item(s) in collection '${collectionName}'${filterNote}:\n\n${formatted}`,
 							},
 						],
 					};
