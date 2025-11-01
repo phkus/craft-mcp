@@ -420,6 +420,10 @@ export class MyMCP extends McpAgent {
 					}
 
 					const blocks = (await response.json()) as any[];
+
+					// DEBUG: Log raw API response
+					console.log('RAW CRAFT API RESPONSE:', JSON.stringify(blocks, null, 2));
+
 					const markdown = this.convertBlocksToMarkdown(blocks);
 
 					return {
