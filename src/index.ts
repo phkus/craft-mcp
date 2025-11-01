@@ -579,6 +579,9 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
+					// Normalize collection name to lowercase (Craft API requires lowercase)
+					const normalizedCollectionName = collectionName.toLowerCase();
+
 					const params = new URLSearchParams();
 					if (maxDepth !== undefined) params.set("maxDepth", maxDepth.toString());
 
@@ -589,7 +592,7 @@ export class MyMCP extends McpAgent {
 					};
 
 					const response = await fetch(
-						`${documentUrl}/collections/${collectionName}/items?${params.toString()}`,
+						`${documentUrl}/collections/${normalizedCollectionName}/items?${params.toString()}`,
 						{
 							method: "GET",
 							headers: headers,
@@ -681,8 +684,11 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
+					// Normalize collection name to lowercase (Craft API requires lowercase)
+					const normalizedCollectionName = collectionName.toLowerCase();
+
 					const response = await fetch(
-						`${documentUrl}/collections/${collectionName}/items`,
+						`${documentUrl}/collections/${normalizedCollectionName}/items`,
 						{
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
@@ -779,8 +785,11 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
+					// Normalize collection name to lowercase (Craft API requires lowercase)
+					const normalizedCollectionName = collectionName.toLowerCase();
+
 					const response = await fetch(
-						`${documentUrl}/collections/${collectionName}/items`,
+						`${documentUrl}/collections/${normalizedCollectionName}/items`,
 						{
 							method: "PUT",
 							headers: { "Content-Type": "application/json" },
