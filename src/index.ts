@@ -558,8 +558,8 @@ export class MyMCP extends McpAgent {
 				maxDepth: z
 					.number()
 					.optional()
-					.default(-1)
-					.describe("Content depth: 0 = properties only (fast browsing), -1 = full nested content (for reading items). Default -1."),
+					.default(0)
+					.describe("Content depth: 0 = properties + word count (fast browsing), -1 = full nested content (for reading items). Default 0."),
 				useMarkdown: z
 					.boolean()
 					.optional()
@@ -586,11 +586,16 @@ export class MyMCP extends McpAgent {
 					// Normalize collection name to lowercase (Craft API requires lowercase)
 					const normalizedCollectionName = collectionName.toLowerCase();
 
+					// When maxDepth=0 (browsing), fetch content for word count but will hide it
+					const shouldShowWordCount = maxDepth === 0;
+					const apiMaxDepth = shouldShowWordCount ? -1 : maxDepth;
+					const apiUseMarkdown = shouldShowWordCount ? true : useMarkdown;
+
 					const params = new URLSearchParams();
-					if (maxDepth !== undefined) params.set("maxDepth", maxDepth.toString());
+					if (apiMaxDepth !== undefined) params.set("maxDepth", apiMaxDepth.toString());
 
 					const headers: Record<string, string> = {
-						Accept: useMarkdown
+						Accept: apiUseMarkdown
 							? "application/json; content=markdown"
 							: "application/json",
 					};
@@ -628,6 +633,23 @@ export class MyMCP extends McpAgent {
 								// Convert both to strings for comparison to handle different types
 								return String(itemValue) === String(value);
 							});
+						});
+					}
+
+					// If maxDepth=0 (browsing mode), show word count instead of content
+					if (shouldShowWordCount) {
+						items = items.map((item: any) => {
+							const content = item.contentMarkdown || "";
+							const wordCount = content.trim().length > 0
+								? content.trim().split(/\s+/).length
+								: 0;
+
+							// Remove content fields and add word count
+							const { content: _, contentMarkdown: __, ...itemWithoutContent } = item;
+							return {
+								...itemWithoutContent,
+								wordCount
+							};
 						});
 					}
 

@@ -68,9 +68,9 @@ The MCP server provides three levels of abstraction for accessing document conte
 **Typical Workflow:**
 1. `listDocuments` → Find available documents
 2. `readDocument` → Discover "Sources collection (from_year, author) - 25 items"
-3. `getCollectionItems(Sources, maxDepth=0)` → Browse all items with properties only
-4. `getCollectionItems(Sources, filter={from_year: "1971"}, maxDepth=0)` → Filter items by property
-5. `getCollectionItems(Sources, filter={from_year: "1971"}, useMarkdown=true)` → Read filtered items with content
+3. `getCollectionItems(Sources)` → Browse all items with properties + word counts (default maxDepth=0)
+4. `getCollectionItems(Sources, filter={from_year: "1971"})` → Filter items, see which have content via word count
+5. `getCollectionItems(Sources, filter={from_year: "1971"}, maxDepth=-1, useMarkdown=true)` → Read full content of filtered items
 
 ### Tools
 
@@ -124,12 +124,14 @@ Collections in Craft are similar to Notion databases - structured tables with cu
    - `filter` (optional): Filter items by property values (e.g., `{from_year: "1971", box_nr: 45}`)
      - Multiple criteria use AND logic (all must match)
      - String comparison for all value types
-   - `maxDepth` (optional, default: -1): Content depth for each item
-     - `0` = Properties only (fast browsing, no content)
+   - `maxDepth` (optional, default: 0): Content depth for each item
+     - `0` = Properties + word count (fast browsing) - **default for efficient browsing**
      - `-1` = Full nested content (for reading items)
    - `useMarkdown` (optional, default: false): If true, returns flat `contentMarkdown` instead of nested blocks (useful for short text collections like notes)
-   - Returns: JSON array of items with `id`, `title`, `properties`, and optionally `content`/`contentMarkdown`
-   - Calls: `GET /collections/{collectionName}/items` on Craft API (filtering done client-side)
+   - Returns: JSON array of items with `id`, `title`, `properties`, and:
+     - When `maxDepth=0`: `wordCount` field (0 if no content)
+     - When `maxDepth=-1`: `content` or `contentMarkdown` fields
+   - Calls: `GET /collections/{collectionName}/items` on Craft API (filtering and word count done client-side)
 
 6. **createCollectionItems** - Add new items to a collection
    - `document` (required): Document name (e.g., "MCP test")
