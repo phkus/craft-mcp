@@ -420,19 +420,6 @@ export class MyMCP extends McpAgent {
 					}
 
 					const blocks = (await response.json()) as any[];
-
-					// DEBUG: Return raw JSON for collection analysis
-					if (document === 'Dissertation Sources') {
-						return {
-							content: [
-								{
-									type: "text",
-									text: '```json\n' + JSON.stringify(blocks, null, 2) + '\n```',
-								},
-							],
-						};
-					}
-
 					const markdown = this.convertBlocksToMarkdown(blocks);
 
 					return {
@@ -892,6 +879,42 @@ export class MyMCP extends McpAgent {
 				}
 
 				return markdown + "\n\n";
+			}
+
+			if (block.type === "collection") {
+				const collectionName = block.markdown || "Unnamed Collection";
+				let result = `<collection id="${block.id}" name="${collectionName}">\n`;
+
+				// Extract schema from items
+				const items = block.items || [];
+				const schemaKeys = new Set<string>();
+				items.forEach((item: any) => {
+					if (item.properties) {
+						Object.keys(item.properties).forEach(key => schemaKeys.add(key));
+					}
+				});
+
+				result += `  <schema>${Array.from(schemaKeys).join(", ")}</schema>\n`;
+				result += `  <items count="${items.length}">\n`;
+
+				// List items with properties but not content
+				items.forEach((item: any) => {
+					result += `    - ${item.title || "Untitled"}`;
+					if (item.properties && Object.keys(item.properties).length > 0) {
+						const props = Object.entries(item.properties)
+							.filter(([_, value]) => value !== null && value !== undefined && value !== "")
+							.map(([key, value]) => `${key}: ${value}`)
+							.join(", ");
+						if (props) {
+							result += ` (${props})`;
+						}
+					}
+					result += "\n";
+				});
+
+				result += `  </items>\n`;
+				result += `</collection>\n\n`;
+				return result;
 			}
 
 			// Other block types (images, files, etc.)
