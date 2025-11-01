@@ -421,8 +421,17 @@ export class MyMCP extends McpAgent {
 
 					const blocks = (await response.json()) as any[];
 
-					// DEBUG: Log raw API response
-					console.log('RAW CRAFT API RESPONSE:', JSON.stringify(blocks, null, 2));
+					// DEBUG: Return raw JSON for collection analysis
+					if (document === 'Dissertation Sources') {
+						return {
+							content: [
+								{
+									type: "text",
+									text: '```json\n' + JSON.stringify(blocks, null, 2) + '\n```',
+								},
+							],
+						};
+					}
 
 					const markdown = this.convertBlocksToMarkdown(blocks);
 
