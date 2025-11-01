@@ -609,7 +609,8 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const items = (await response.json()) as any[];
+					const responseData = (await response.json()) as any;
+					const items = responseData.items || responseData;
 					const formatted = JSON.stringify(items, null, 2);
 
 					return {
@@ -705,7 +706,8 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const createdItems = (await response.json()) as any[];
+					const responseData = (await response.json()) as any;
+					const createdItems = responseData.items || responseData;
 					const formatted = JSON.stringify(createdItems, null, 2);
 
 					return {
@@ -802,7 +804,8 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const updatedItems = (await response.json()) as any[];
+					const responseData = (await response.json()) as any;
+					const updatedItems = responseData.items || responseData;
 					const formatted = JSON.stringify(updatedItems, null, 2);
 
 					return {
