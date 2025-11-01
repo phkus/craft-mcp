@@ -46,9 +46,30 @@ craft-mcp/
 
 The server supports multiple Craft documents configured via environment variables. All tools require an explicit `document` parameter to specify which document to operate on.
 
-**Workflow:**
-1. Call `listDocuments` to see available documents
-2. Call any tool with the `document` parameter to specify which document to use
+### Three-Level Abstraction for Working with Documents
+
+The MCP server provides three levels of abstraction for accessing document content:
+
+**Level 1: Document Structure** - `readDocument`
+- Discover what's in a document (prose, headings, pages, collections)
+- See collection metadata (name, schema, item count) without loading items
+- Understand document organization before diving deeper
+
+**Level 2: Collection Browsing** - `getCollectionItems`
+- Query specific collections for their items
+- Browse items with properties only (`maxDepth=0`) for efficiency
+- Read full item content when needed (`maxDepth=-1` or `useMarkdown=true`)
+
+**Level 3: Item Reading** - Included in `getCollectionItems`
+- Get full content of collection items
+- Use `useMarkdown=true` for collections with short text (notes, tasks)
+- Use nested blocks (default) for complex structured content
+
+**Typical Workflow:**
+1. `listDocuments` → Find available documents
+2. `readDocument` → Discover "Sources collection (from_year, author) - 25 items"
+3. `getCollectionItems(Sources, maxDepth=0)` → Browse items with properties only
+4. `getCollectionItems(Sources, useMarkdown=true)` → Read specific items or short collections
 
 ### Tools
 
@@ -59,11 +80,12 @@ The server supports multiple Craft documents configured via environment variable
    - Returns: List of configured document names
    - Used to discover available documents
 
-1. **fetchBlocks** - Read document content with IDs embedded
+1. **readDocument** - Read document structure and content
    - `document` (required): Document name (e.g., "MCP test")
    - `id` (optional): ID of page or heading to fetch (omit for root page)
    - `maxDepth` (optional, default: -1): Maximum nesting depth (-1 for all, 0 for block only, 1 for immediate children)
-   - Returns: Markdown with embedded IDs using `<!-- id:... -->` for headings and `<page id="...">` tags
+   - Returns: Markdown with embedded IDs, prose content, and collection metadata
+   - Collections shown as: `<collection id="..." name="..."><schema>...</schema><items count="N"></items></collection>`
    - Calls: `GET /blocks` on Craft API
 
 2. **insertText** - Insert markdown content into the document
@@ -93,12 +115,16 @@ The server supports multiple Craft documents configured via environment variable
 
 Collections in Craft are similar to Notion databases - structured tables with custom schemas. These tools work generically with any collection schema.
 
-5. **getCollectionItems** - Retrieve items from a collection
+**Important:** Use `readDocument` first to discover collections and their schemas. Collection names are case-insensitive.
+
+5. **getCollectionItems** - Browse and read collection items
    - `document` (required): Document name (e.g., "MCP test")
-   - `collectionName` (required): Name of the collection (e.g., "drafts", "notes", "tasks")
-   - `maxDepth` (optional, default: -1): Maximum depth of nested content (-1 for all, 0 for properties only)
-   - `useMarkdown` (optional, default: false): If true, returns `contentMarkdown` field instead of nested blocks
-   - Returns: JSON array of collection items with `id`, `title`, `properties`, and `content`/`contentMarkdown`
+   - `collectionName` (required): Collection name (case-insensitive, e.g., "Sources", "drafts")
+   - `maxDepth` (optional, default: -1): Content depth for each item
+     - `0` = Properties only (fast browsing, no content)
+     - `-1` = Full nested content (for reading items)
+   - `useMarkdown` (optional, default: false): If true, returns flat `contentMarkdown` instead of nested blocks (useful for short text collections like notes)
+   - Returns: JSON array of items with `id`, `title`, `properties`, and optionally `content`/`contentMarkdown`
    - Calls: `GET /collections/{collectionName}/items` on Craft API
 
 6. **createCollectionItems** - Add new items to a collection

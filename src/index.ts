@@ -360,13 +360,13 @@ export class MyMCP extends McpAgent {
 			},
 		);
 
-		// 3. fetchBlocks - Read document content with IDs embedded
+		// 3. readDocument - Read document structure and content
 		this.server.tool(
-			"fetchBlocks",
+			"readDocument",
 			{
 				document: z
 					.string()
-					.describe("Name of the document to fetch (e.g., 'MCP test')."),
+					.describe("Name of the document to read (e.g., 'MCP test')."),
 				id: z
 					.string()
 					.optional()
@@ -412,7 +412,7 @@ export class MyMCP extends McpAgent {
 							content: [
 								{
 									type: "text",
-									text: `Failed to fetch blocks: Craft API error (${response.status}): ${errorText}`,
+									text: `Failed to read document: Craft API error (${response.status}): ${errorText}`,
 								},
 							],
 							isError: true,
@@ -435,7 +435,7 @@ export class MyMCP extends McpAgent {
 						content: [
 							{
 								type: "text",
-								text: `Failed to fetch blocks: ${error instanceof Error ? error.message : String(error)}`,
+								text: `Failed to read document: ${error instanceof Error ? error.message : String(error)}`,
 							},
 						],
 						isError: true,
@@ -541,7 +541,7 @@ export class MyMCP extends McpAgent {
 			},
 		);
 
-		// 5. getCollectionItems - Retrieve items from a collection
+		// 5. getCollectionItems - Browse and read collection items
 		this.server.tool(
 			"getCollectionItems",
 			{
@@ -550,17 +550,17 @@ export class MyMCP extends McpAgent {
 					.describe("Name of the document containing the collection (e.g., 'MCP test')."),
 				collectionName: z
 					.string()
-					.describe("Name of the collection to retrieve items from (e.g., 'drafts', 'notes', 'tasks')."),
+					.describe("Name of the collection (case-insensitive, e.g., 'Sources', 'drafts', 'notes'). Use readDocument first to discover available collections."),
 				maxDepth: z
 					.number()
 					.optional()
 					.default(-1)
-					.describe("Maximum depth of nested content to fetch for each item. Default -1 (all), 0 (only properties)."),
+					.describe("Content depth: 0 = properties only (fast browsing), -1 = full nested content (for reading items). Default -1."),
 				useMarkdown: z
 					.boolean()
 					.optional()
 					.default(false)
-					.describe("If true, returns contentMarkdown field instead of nested content blocks."),
+					.describe("If true, returns flat contentMarkdown field instead of nested blocks. Useful for collections with short text content."),
 			},
 			async ({ document, collectionName, maxDepth, useMarkdown }) => {
 				try {
@@ -894,25 +894,9 @@ export class MyMCP extends McpAgent {
 					}
 				});
 
-				result += `  <schema>${Array.from(schemaKeys).join(", ")}</schema>\n`;
-				result += `  <items count="${items.length}">\n`;
-
-				// List items with properties but not content
-				items.forEach((item: any) => {
-					result += `    - ${item.title || "Untitled"}`;
-					if (item.properties && Object.keys(item.properties).length > 0) {
-						const props = Object.entries(item.properties)
-							.filter(([_, value]) => value !== null && value !== undefined && value !== "")
-							.map(([key, value]) => `${key}: ${value}`)
-							.join(", ");
-						if (props) {
-							result += ` (${props})`;
-						}
-					}
-					result += "\n";
-				});
-
-				result += `  </items>\n`;
+				const schemaStr = Array.from(schemaKeys).join(", ");
+				result += `  <schema>${schemaStr || "no properties"}</schema>\n`;
+				result += `  <items count="${items.length}"></items>\n`;
 				result += `</collection>\n\n`;
 				return result;
 			}
