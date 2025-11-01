@@ -715,7 +715,7 @@ export class MyMCP extends McpAgent {
 					}
 
 					const responseData = (await response.json()) as any;
-					const createdItems = responseData.items || responseData;
+					const createdItems = responseData.successful || responseData.items || responseData;
 					const formatted = JSON.stringify(createdItems, null, 2);
 
 					return {
@@ -818,7 +818,7 @@ export class MyMCP extends McpAgent {
 					}
 
 					const responseData = (await response.json()) as any;
-					const updatedItems = responseData.items || responseData;
+					const updatedItems = responseData.successful || responseData.items || responseData;
 					const formatted = JSON.stringify(updatedItems, null, 2);
 
 					return {
