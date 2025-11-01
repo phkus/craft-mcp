@@ -687,15 +687,17 @@ export class MyMCP extends McpAgent {
 					// Normalize collection name to lowercase (Craft API requires lowercase)
 					const normalizedCollectionName = collectionName.toLowerCase();
 
+					const requestBody: any = { items };
+					if (allowNewSelectOptions) {
+						requestBody.allowNewSelectOptions = true;
+					}
+
 					const response = await fetch(
 						`${documentUrl}/collections/${normalizedCollectionName}/items`,
 						{
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({
-								items: items,
-								allowNewSelectOptions: allowNewSelectOptions,
-							}),
+							body: JSON.stringify(requestBody),
 						},
 					);
 
@@ -788,15 +790,17 @@ export class MyMCP extends McpAgent {
 					// Normalize collection name to lowercase (Craft API requires lowercase)
 					const normalizedCollectionName = collectionName.toLowerCase();
 
+					const requestBody: any = { itemsToUpdate };
+					if (allowNewSelectOptions) {
+						requestBody.allowNewSelectOptions = true;
+					}
+
 					const response = await fetch(
 						`${documentUrl}/collections/${normalizedCollectionName}/items`,
 						{
 							method: "PUT",
 							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({
-								itemsToUpdate: itemsToUpdate,
-								allowNewSelectOptions: allowNewSelectOptions,
-							}),
+							body: JSON.stringify(requestBody),
 						},
 					);
 
