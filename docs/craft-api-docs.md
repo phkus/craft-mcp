@@ -1,4 +1,4 @@
-# Craft – API for 1.2 Early MAB
+# Craft – API for MCP test
 
 **Version:** 1.0.0
 
@@ -15,7 +15,6 @@ This API is best utilized when a custom abstraction layer is built on top to hid
 ## Note for AI
 When implementing functionality using this API, always make actual calls to these endpoints and verify the responses. Do not simulate or mock the API interactions or use hard-coded values on the client-side - use the real endpoints to ensure proper functionality and data handling.
 
-
 **IMPORTANT: This is a production server connected to real user data.** Only perform testing operations that can be safely rolled back:
 
 - Safe: Reading data (`GET` requests), creating test content that you delete immediately after
@@ -27,8 +26,8 @@ Always verify rollback operations work before considering a test complete.
 
 ## Servers
 
-- https://connect.craft.do/links/IXeRy89tG13/api/v1
-  API Server for 1.2 Early MAB
+- https://connect.craft.do/links/AcHPMgNXYdR/api/v1
+  API Server for MCP test
 
 ---
 
@@ -38,14 +37,13 @@ Always verify rollback operations work before considering a test complete.
 
 `GET /blocks`
 
-Fetches content from the data store. The system uses a block-based hierarchical structure with rich content support. Page blocks define the hierarchy, where each page contains child blocks. The root level is itself a page block.
-
+Fetches content from the document. The system uses a block-based hierarchical structure with rich content support. Page blocks define the hierarchy, where each page contains child blocks. The root level is itself a page block.
 
 Use `Accept` header `application/json` for structured data, `text/markdown` for rendered content.
 
-
 **Content Rendering:** Text blocks contain markdown formatting and may include structural tags like `<page></page>`, `<card></card>`, etc. When displaying content, consider rendering markdown as formatted text or cleaning up the syntax and structural tags for plain text display.
 
+**Document Scope Filtering:** Block links in text runs are filtered to document scope. In-scope links include a `relation` field with the target blockId. Out-of-scope links include a `warning` string field instead.
 
 **Tip:** Start by calling this endpoint without parameters to explore and understand the data structure before making modifications.
 
@@ -66,75 +64,73 @@ Array of fetched blocks
 **Content-Type:** `application/json`
 
 ```json
-[
-  {
-    "id": "0",
-    "type": "page",
-    "textStyle": "page",
-    "markdown": "<page>Document Title</page>",
-    "content": [
-      {
-        "id": "1",
-        "type": "text",
-        "textStyle": "h1",
-        "markdown": "# Main Section"
-      },
-      {
-        "id": "2",
-        "type": "text",
-        "markdown": "This document contains hierarchical content with multiple nesting levels."
-      },
-      {
-        "id": "3",
-        "type": "page",
-        "textStyle": "card",
-        "markdown": "<card>Subsection A</card>",
-        "content": [
-          {
-            "id": "4",
-            "type": "text",
-            "textStyle": "h2",
-            "markdown": "## Category Header"
-          },
-          {
-            "id": "5",
-            "type": "text",
-            "markdown": "- List item alpha",
-            "indentationLevel": 3
-          },
-          {
-            "id": "6",
-            "type": "page",
-            "textStyle": "card",
-            "markdown": "<card>Sub-subsection</card>",
-            "content": [
-              {
-                "id": "7",
-                "type": "text",
-                "textStyle": "h3",
-                "markdown": "### Nested Header"
-              },
-              {
-                "id": "8",
-                "type": "text",
-                "markdown": "Content at depth level 3 with **formatting**.",
-                "indentationLevel": 1
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "id": "9",
-        "type": "image",
-        "url": "https://example.com/diagram.jpg",
-        "altText": "Structural diagram",
-        "width": 600,
-        "height": 400
-      }
-    ]
-  }
-]
+{
+  "id": "0",
+  "type": "page",
+  "textStyle": "page",
+  "markdown": "<page>Document Title</page>",
+  "content": [
+    {
+      "id": "1",
+      "type": "text",
+      "textStyle": "h1",
+      "markdown": "# Main Section"
+    },
+    {
+      "id": "2",
+      "type": "text",
+      "markdown": "This document contains hierarchical content with multiple nesting levels."
+    },
+    {
+      "id": "3",
+      "type": "page",
+      "textStyle": "card",
+      "markdown": "<card>Subsection A</card>",
+      "content": [
+        {
+          "id": "4",
+          "type": "text",
+          "textStyle": "h2",
+          "markdown": "## Category Header"
+        },
+        {
+          "id": "5",
+          "type": "text",
+          "markdown": "- List item alpha",
+          "indentationLevel": 3
+        },
+        {
+          "id": "6",
+          "type": "page",
+          "textStyle": "card",
+          "markdown": "<card>Sub-subsection</card>",
+          "content": [
+            {
+              "id": "7",
+              "type": "text",
+              "textStyle": "h3",
+              "markdown": "### Nested Header"
+            },
+            {
+              "id": "8",
+              "type": "text",
+              "markdown": "Content at depth level 3 with **formatting**.",
+              "indentationLevel": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "type": "image",
+      "url": "https://example.com/diagram.jpg",
+      "altText": "Structural diagram",
+      "width": 600,
+      "height": 400
+    }
+  ]
+}
 ```
 
 **Content-Type:** `text/markdown`
@@ -177,26 +173,23 @@ Array of fetched blocks
 
 `POST /blocks`
 
-Insert content into the data store. Content can be provided as structured JSON blocks. Returns the inserted blocks with their assigned block IDs for later reference. Block IDs never change once assigned.
-
+Insert content into the document. Content can be provided as structured JSON blocks. Returns the inserted blocks with their assigned block IDs for later reference. Block IDs never change once assigned.
 
 **File Upload (3-Step Process)** – to upload files (images, videos, documents):
-1. Call POST `/upload-link` with optional `fileName` or `mimeType` (e.g., `{"fileName": "photo.jpg"}`) to get `uploadUrl` and `rawUrl`
+1. Call POST `/upload-link` with optional `fileName` or `mimeType` (e.g., `{"fileName": "photo.jpg"}`) to get `uploadUrl`
 2. Upload file to S3 with matching Content-Type:
    ```bash
    curl -T /path/to/file "UPLOAD_URL" -H "Content-Type: image/jpeg"
    ```
-3. Call POST `/blocks` with the `rawUrl` as the block's `url` field
+3. Call POST `/blocks` with the uploaded file's URL as the block's `url` field
    - File metadata (`mimeType`, `fileSize`) will be automatically fetched from S3 and populated in the response
    - Do NOT provide `mimeType` or `fileSize` in the request - they are read-only fields
 
 **S3 CLEANUP WARNING:**
 Files uploaded to S3 that are NOT inserted into blocks within the timeout period will be automatically purged. Complete step 3 promptly.
 
-
 **Content-Type Matching:**
 The `Content-Type` header in step 2 must match the `mimeType` provided in step 1. If neither `mimeType` nor `fileName` is provided, defaults to `text/plain`.
-
 
 **File Metadata:**
 - `fileName`: Optional display name (e.g., `document.pdf`)
@@ -299,51 +292,31 @@ Array of inserted blocks with assigned IDs
 **Content-Type:** `application/json`
 
 ```json
-[
-  {
-    "id": "15",
-    "type": "text",
-    "textStyle": "body",
-    "markdown": "## Second Level Header\n\n- **List Item A**: Description text\n- **List Item B**: Description text"
-  },
-  {
-    "id": "16",
-    "type": "image",
-    "url": "https://res.luki.io/user/full/space-id/doc/doc-id/uuid",
-    "altText": "Alt text for accessibility",
-    "markdown": "![Image](https://res.luki.io/user/full/space-id/doc/doc-id/uuid)"
-  },
-  {
-    "id": "17",
-    "type": "file",
-    "url": "https://res.luki.io/user/full/space-id/doc/doc-id/file-uuid.pdf",
-    "fileName": "document.pdf",
-    "mimeType": "application/pdf",
-    "fileSize": 1536000,
-    "markdown": "[document.pdf](https://res.luki.io/user/full/space-id/doc/doc-id/file-uuid.pdf)"
-  }
-]
-```
-
-### 400
-Invalid request data, missing required fields, or upload failed
-
-**Content-Type:** `application/json`
-
-```json
 {
-  "error": "Error message"
-}
-```
-
-### 403
-insertBlocks is not enabled for this connection
-
-**Content-Type:** `application/json`
-
-```json
-{
-  "error": "insertBlocks is not enabled for this connection"
+  "items": [
+    {
+      "id": "15",
+      "type": "text",
+      "textStyle": "body",
+      "markdown": "## Second Level Header\n\n- **List Item A**: Description text\n- **List Item B**: Description text"
+    },
+    {
+      "id": "16",
+      "type": "image",
+      "url": "https://res.luki.io/user/full/space-id/doc/doc-id/uuid",
+      "altText": "Alt text for accessibility",
+      "markdown": "![Image](https://res.luki.io/user/full/space-id/doc/doc-id/uuid)"
+    },
+    {
+      "id": "17",
+      "type": "file",
+      "url": "https://res.luki.io/user/full/space-id/doc/doc-id/file-uuid.pdf",
+      "fileName": "document.pdf",
+      "mimeType": "application/pdf",
+      "fileSize": 1536000,
+      "markdown": "[document.pdf](https://res.luki.io/user/full/space-id/doc/doc-id/file-uuid.pdf)"
+    }
+  ]
 }
 ```
 
@@ -353,7 +326,7 @@ insertBlocks is not enabled for this connection
 
 `DELETE /blocks`
 
-Delete content from the data store. Removes specified blocks by their IDs. Partial success supported – operation continues even if some block IDs are not found.
+Delete content from the document. Removes specified blocks by their IDs. Partial success supported – operation continues even if some block IDs are not found.
 
 ## Request Body
 
@@ -377,11 +350,19 @@ Array of deleted block IDs (HTTP 207 for partial success)
 **Content-Type:** `application/json`
 
 ```json
-[
-  "7",
-  "9",
-  "12"
-]
+{
+  "items": [
+    {
+      "id": "7"
+    },
+    {
+      "id": "9"
+    },
+    {
+      "id": "12"
+    }
+  ]
+}
 ```
 
 ---
@@ -390,13 +371,16 @@ Array of deleted block IDs (HTTP 207 for partial success)
 
 `PUT /blocks`
 
-Update content in the data store.
+Update content in the document.
 
 
 For text blocks, provide updated markdown content in the `markdown` field. Only paragraph level markdown is allowed: headings, text formatting, list style (single list item only). Markdown that yields non-text blocks or multiple blocks will be rejected.
 
 
 Returns updated blocks to confirm changes.
+
+
+
 
 ## Request Body
 
@@ -426,21 +410,23 @@ Array of updated blocks
 **Content-Type:** `application/json`
 
 ```json
-[
-  {
-    "id": "5",
-    "type": "text",
-    "textStyle": "body",
-    "markdown": "## Updated Section Title\n\nThis content has been updated with new information.",
-    "font": "serif"
-  },
-  {
-    "id": "8",
-    "type": "text",
-    "textStyle": "h2",
-    "markdown": "# New Heading"
-  }
-]
+{
+  "items": [
+    {
+      "id": "5",
+      "type": "text",
+      "textStyle": "body",
+      "markdown": "## Updated Section Title\n\nThis content has been updated with new information.",
+      "font": "serif"
+    },
+    {
+      "id": "8",
+      "type": "text",
+      "textStyle": "h2",
+      "markdown": "# New Heading"
+    }
+  ]
+}
 ```
 
 ---
@@ -451,14 +437,13 @@ Array of updated blocks
 
 Generate a pre-signed S3 URL for direct file upload (Step 1 of 3-step upload process).
 
-
 **3-Step Upload Flow:**
-1. Call this endpoint with `fileName` (required) to get `uploadUrl` and `rawUrl`
+1. Call this endpoint with `fileName` (required) to get `uploadUrl`
 2. Upload file to S3 with matching Content-Type:
    ```bash
    curl -T /path/to/file "UPLOAD_URL" -H "Content-Type: image/jpeg"
    ```
-3. Call POST `/blocks` with the `rawUrl` as the block's `url` field to insert the block
+3. Call POST `/blocks` with the uploaded file's URL as the block's `url` field to insert the block
 
 **IMPORTANT NOTES:**
 - **`fileName` is REQUIRED** - Must provide the filename with extension (e.g., `photo.jpg`, `document.pdf`)
@@ -482,25 +467,14 @@ Generate a pre-signed S3 URL for direct file upload (Step 1 of 3-step upload pro
 ## Responses
 
 ### 200
-Upload URL and view URL generated successfully
+Upload URL generated successfully
 
 **Content-Type:** `application/json`
 
 ```json
 {
   "uploadUrl": "https://s3.amazonaws.com/bucket/path?AWSAccessKeyId=...&Signature=...",
-  "rawUrl": "https://res.luki.io/user/full/space-id/doc/doc-id/generated-uuid"
-}
-```
-
-### 500
-Failed to generate upload URL
-
-**Content-Type:** `application/json`
-
-```json
-{
-  "error": "Error message"
+  "rawUrl": "string"
 }
 ```
 
@@ -538,20 +512,28 @@ Array of moved block IDs (HTTP 207 for partial success)
 **Content-Type:** `application/json`
 
 ```json
-[
-  "9",
-  "10",
-  "11"
-]
+{
+  "items": [
+    {
+      "id": "9"
+    },
+    {
+      "id": "10"
+    },
+    {
+      "id": "11"
+    }
+  ]
+}
 ```
 
 ---
 
-# Search
+# Search in Document
 
 `GET /blocks/search`
 
-Search content in the data store. Results are returned in hierarchical order. Each match includes the block ID, content, hierarchical path, and surrounding context blocks for better understanding of the data relationships.
+Search content in the document. Results are returned in hierarchical order. Each match includes the block ID, content, hierarchical path, and surrounding context blocks for better understanding of the data relationships.
 
 ## Parameters
 
@@ -577,85 +559,87 @@ Array of search matches with structured context
 Search for 'Description' with beforeBlockCount=3, afterBlockCount=2
 
 ```json
-[
-  {
-    "blockId": "109",
-    "markdown": "List Item A: Description text",
-    "pageBlockPath": [
-      {
-        "id": "0",
-        "content": "title"
-      }
-    ],
-    "beforeBlocks": [
-      {
-        "blockId": "108",
-        "markdown": "Second Level Header"
-      }
-    ],
-    "afterBlocks": [
-      {
-        "blockId": "110",
-        "markdown": "List Item B: Description text"
-      },
-      {
-        "blockId": "111",
-        "markdown": "List Item C: Description text"
-      }
-    ]
-  },
-  {
-    "blockId": "110",
-    "markdown": "List Item B: Description text",
-    "pageBlockPath": [
-      {
-        "id": "0",
-        "content": "title"
-      }
-    ],
-    "beforeBlocks": [
-      {
-        "blockId": "108",
-        "markdown": "Second Level Header"
-      },
-      {
-        "blockId": "109",
-        "markdown": "List Item A: Description text"
-      }
-    ],
-    "afterBlocks": [
-      {
-        "blockId": "111",
-        "markdown": "List Item C: Description text"
-      }
-    ]
-  },
-  {
-    "blockId": "111",
-    "markdown": "List Item C: Description text",
-    "pageBlockPath": [
-      {
-        "id": "0",
-        "content": "title"
-      }
-    ],
-    "beforeBlocks": [
-      {
-        "blockId": "108",
-        "markdown": "Second Level Header"
-      },
-      {
-        "blockId": "109",
-        "markdown": "List Item A: Description text"
-      },
-      {
-        "blockId": "110",
-        "markdown": "List Item B: Description text"
-      }
-    ],
-    "afterBlocks": []
-  }
-]
+{
+  "items": [
+    {
+      "blockId": "109",
+      "markdown": "List Item A: Description text",
+      "pageBlockPath": [
+        {
+          "id": "0",
+          "content": "title"
+        }
+      ],
+      "beforeBlocks": [
+        {
+          "blockId": "108",
+          "markdown": "Second Level Header"
+        }
+      ],
+      "afterBlocks": [
+        {
+          "blockId": "110",
+          "markdown": "List Item B: Description text"
+        },
+        {
+          "blockId": "111",
+          "markdown": "List Item C: Description text"
+        }
+      ]
+    },
+    {
+      "blockId": "110",
+      "markdown": "List Item B: Description text",
+      "pageBlockPath": [
+        {
+          "id": "0",
+          "content": "title"
+        }
+      ],
+      "beforeBlocks": [
+        {
+          "blockId": "108",
+          "markdown": "Second Level Header"
+        },
+        {
+          "blockId": "109",
+          "markdown": "List Item A: Description text"
+        }
+      ],
+      "afterBlocks": [
+        {
+          "blockId": "111",
+          "markdown": "List Item C: Description text"
+        }
+      ]
+    },
+    {
+      "blockId": "111",
+      "markdown": "List Item C: Description text",
+      "pageBlockPath": [
+        {
+          "id": "0",
+          "content": "title"
+        }
+      ],
+      "beforeBlocks": [
+        {
+          "blockId": "108",
+          "markdown": "Second Level Header"
+        },
+        {
+          "blockId": "109",
+          "markdown": "List Item A: Description text"
+        },
+        {
+          "blockId": "110",
+          "markdown": "List Item B: Description text"
+        }
+      ],
+      "afterBlocks": []
+    }
+  ]
+}
 ```
 
 **Example: deeplyNestedSearch**
@@ -663,63 +647,67 @@ Search for 'Description' with beforeBlockCount=3, afterBlockCount=2
 Search in deeply nested structure with beforeBlockCount=2, afterBlockCount=1
 
 ```json
-[
-  {
-    "blockId": "87",
-    "markdown": "This important task needs attention",
-    "pageBlockPath": [
-      {
-        "id": "0",
-        "content": "Project Documentation"
-      },
-      {
-        "id": "3",
-        "content": "Development Phase"
-      },
-      {
-        "id": "12",
-        "content": "Backend Implementation"
-      },
-      {
-        "id": "24",
-        "content": "API Endpoints"
-      },
-      {
-        "id": "56",
-        "content": "Authentication Module"
-      }
-    ],
-    "beforeBlocks": [
-      {
-        "blockId": "85",
-        "markdown": "## Security Requirements"
-      },
-      {
-        "blockId": "86",
-        "markdown": "JWT tokens must be validated on every request"
-      }
-    ],
-    "afterBlocks": [
-      {
-        "blockId": "88",
-        "markdown": "Password hashing should use bcrypt with salt rounds >= 12"
-      }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "blockId": "87",
+      "markdown": "This important task needs attention",
+      "pageBlockPath": [
+        {
+          "id": "0",
+          "content": "Project Documentation"
+        },
+        {
+          "id": "3",
+          "content": "Development Phase"
+        },
+        {
+          "id": "12",
+          "content": "Backend Implementation"
+        },
+        {
+          "id": "24",
+          "content": "API Endpoints"
+        },
+        {
+          "id": "56",
+          "content": "Authentication Module"
+        }
+      ],
+      "beforeBlocks": [
+        {
+          "blockId": "85",
+          "markdown": "## Security Requirements"
+        },
+        {
+          "blockId": "86",
+          "markdown": "JWT tokens must be validated on every request"
+        }
+      ],
+      "afterBlocks": [
+        {
+          "blockId": "88",
+          "markdown": "Password hashing should use bcrypt with salt rounds >= 12"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ---
 
-# List Drafts
+# Get Test Collection
 
-`GET /collections/drafts/items`
+`GET /collections/test_collection/items`
 
-Retrieve all drafts items. Backend document changes may cause 404 errors - handle gracefully.
+Retrieve all test collection items. Backend document changes may cause 404 errors - handle gracefully.
 
 **Content Format:** Use Accept header to control content format:
 - `Accept: application/json` (default) - Returns items with nested content as block arrays
 - `Accept: application/json; content=markdown` - Returns items with contentMarkdown field containing the item's markdown representation
+
+**Document Scope Filtering:** Relations and block links in properties are filtered to document scope. Out-of-scope references show a `warning` string field and empty or reduced arrays.
 
 ## Parameters
 
@@ -729,7 +717,7 @@ Retrieve all drafts items. Backend document changes may cause 404 errors - handl
 ## Responses
 
 ### 200
-Drafts items retrieved successfully
+Test Collection items retrieved successfully
 
 **Content-Type:** `application/json`
 
@@ -739,20 +727,26 @@ Drafts items retrieved successfully
 Default format with nested blocks
 
 ```json
-[
-  {
-    "id": "3",
-    "title": "Example Title",
-    "properties": {},
-    "content": [
-      {
-        "id": "4",
-        "type": "text",
-        "markdown": "Example content in the item"
-      }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Q1 Project Planning",
+      "properties": {
+        "status": "In Progress",
+        "dueDate": "2025-03-31",
+        "owner": "Jane Smith"
+      },
+      "content": [
+        {
+          "id": "4",
+          "type": "text",
+          "markdown": "## Objectives\n\n- Define quarterly goals\n- Allocate resources\n- Set key milestones"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 **Example: markdownFormat**
@@ -760,23 +754,29 @@ Default format with nested blocks
 Markdown format (Accept: application/json; content=markdown)
 
 ```json
-[
-  {
-    "id": "3",
-    "title": "Example Title",
-    "properties": {},
-    "contentMarkdown": "Example content in the item"
-  }
-]
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Q1 Project Planning",
+      "properties": {
+        "status": "In Progress",
+        "dueDate": "2025-03-31",
+        "owner": "Jane Smith"
+      },
+      "contentMarkdown": "## Objectives\n\n- Define quarterly goals\n- Allocate resources\n- Set key milestones"
+    }
+  ]
+}
 ```
 
 ---
 
-# Create Drafts
+# Add Test Collection
 
-`POST /collections/drafts/items`
+`POST /collections/test_collection/items`
 
-Add new drafts items. Schema changes may cause validation errors.
+Add new test collection items. Schema changes may cause validation errors.
 
 ## Request Body
 
@@ -787,40 +787,70 @@ Add new drafts items. Schema changes may cause validation errors.
   "items": [
     {
       "title": "string",
-      "properties": {
-        "status": "todo"
-      }
+      "properties": {}
     }
-  ],
-  "allowNewSelectOptions": false
+  ]
 }
 ```
 
 ## Responses
 
 ### 200
-Drafts items created successfully
+Test Collection items created successfully
 
 **Content-Type:** `application/json`
 
+
+**Example: success**
+
+Successful creation
+
 ```json
-[
-  {
-    "title": "Title 1",
-    "properties": {
-      "status": "todo"
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "New Collection Item",
+      "properties": {
+        "status": "Active",
+        "priority": "High",
+        "assignee": "John Doe"
+      }
     }
-  }
-]
+  ]
+}
+```
+
+**Example: partialFailure**
+
+Partial failure with some items failing
+
+```json
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Successfully Created Item",
+      "properties": {
+        "status": "Active"
+      }
+    }
+  ],
+  "ignoredItems": [
+    {
+      "title": "Invalid Item Missing Required Field"
+    }
+  ]
+}
 ```
 
 ---
 
-# Remove Drafts
+# Delete Test Collection
 
-`DELETE /collections/drafts/items`
+`DELETE /collections/test_collection/items`
 
-Delete drafts items. Items may already be deleted, causing partial success.
+Delete test collection items. Items may already be deleted, causing partial success.
 
 ## Request Body
 
@@ -838,23 +868,30 @@ Delete drafts items. Items may already be deleted, causing partial success.
 ## Responses
 
 ### 200
-Drafts items deleted successfully
+Test Collection items deleted successfully
 
 **Content-Type:** `application/json`
 
 ```json
-[
-  "string"
-]
+{
+  "items": [
+    {
+      "id": "3"
+    },
+    {
+      "id": "4"
+    }
+  ]
+}
 ```
 
 ---
 
-# Modify Drafts
+# Update Test Collection
 
-`PUT /collections/drafts/items`
+`PUT /collections/test_collection/items`
 
-Update existing drafts items. Item deletion or schema changes may cause errors.
+Update existing test collection items. Item deletion or schema changes may cause errors.
 
 ## Request Body
 
@@ -866,44 +903,76 @@ Update existing drafts items. Item deletion or schema changes may cause errors.
     {
       "id": "string",
       "title": "string",
-      "properties": {
-        "status": "todo"
-      }
+      "properties": {}
     }
-  ],
-  "allowNewSelectOptions": false
+  ]
 }
 ```
 
 ## Responses
 
 ### 200
-Drafts items updated successfully
+Test Collection items updated successfully
 
 **Content-Type:** `application/json`
 
+
+**Example: success**
+
+Successful update
+
 ```json
-[
-  {
-    "title": "Title 1",
-    "properties": {
-      "status": "todo"
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Updated Collection Item Title",
+      "properties": {
+        "status": "Completed",
+        "priority": "Medium",
+        "completedDate": "2025-01-15"
+      }
     }
-  }
-]
+  ]
+}
+```
+
+**Example: partialFailure**
+
+Partial failure with some items failing
+
+```json
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Successfully Updated Item",
+      "properties": {
+        "status": "Completed"
+      }
+    }
+  ],
+  "ignoredItems": [
+    {
+      "id": "999"
+    }
+  ]
+}
 ```
 
 ---
 
-# List Notes
+# Get Another collection
 
-`GET /collections/notes/items`
+`GET /collections/another_collection/items`
 
-Retrieve all notes items. Backend document changes may cause 404 errors - handle gracefully.
+Retrieve all another collection items. Backend document changes may cause 404 errors - handle gracefully.
 
 **Content Format:** Use Accept header to control content format:
 - `Accept: application/json` (default) - Returns items with nested content as block arrays
 - `Accept: application/json; content=markdown` - Returns items with contentMarkdown field containing the item's markdown representation
+
+**Document Scope Filtering:** Relations and block links in properties are filtered to document scope. Out-of-scope references show a `warning` string field and empty or reduced arrays.
 
 ## Parameters
 
@@ -913,7 +982,7 @@ Retrieve all notes items. Backend document changes may cause 404 errors - handle
 ## Responses
 
 ### 200
-Notes items retrieved successfully
+Another collection items retrieved successfully
 
 **Content-Type:** `application/json`
 
@@ -923,20 +992,26 @@ Notes items retrieved successfully
 Default format with nested blocks
 
 ```json
-[
-  {
-    "id": "3",
-    "title": "Example Title",
-    "properties": {},
-    "content": [
-      {
-        "id": "4",
-        "type": "text",
-        "markdown": "Example content in the item"
-      }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Q1 Project Planning",
+      "properties": {
+        "status": "In Progress",
+        "dueDate": "2025-03-31",
+        "owner": "Jane Smith"
+      },
+      "content": [
+        {
+          "id": "4",
+          "type": "text",
+          "markdown": "## Objectives\n\n- Define quarterly goals\n- Allocate resources\n- Set key milestones"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 **Example: markdownFormat**
@@ -944,23 +1019,29 @@ Default format with nested blocks
 Markdown format (Accept: application/json; content=markdown)
 
 ```json
-[
-  {
-    "id": "3",
-    "title": "Example Title",
-    "properties": {},
-    "contentMarkdown": "Example content in the item"
-  }
-]
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Q1 Project Planning",
+      "properties": {
+        "status": "In Progress",
+        "dueDate": "2025-03-31",
+        "owner": "Jane Smith"
+      },
+      "contentMarkdown": "## Objectives\n\n- Define quarterly goals\n- Allocate resources\n- Set key milestones"
+    }
+  ]
+}
 ```
 
 ---
 
-# Create Notes
+# Add Another collection
 
-`POST /collections/notes/items`
+`POST /collections/another_collection/items`
 
-Add new notes items. Schema changes may cause validation errors.
+Add new another collection items. Schema changes may cause validation errors.
 
 ## Request Body
 
@@ -971,40 +1052,70 @@ Add new notes items. Schema changes may cause validation errors.
   "items": [
     {
       "title": "string",
-      "properties": {
-        "status": "to_write"
-      }
+      "properties": {}
     }
-  ],
-  "allowNewSelectOptions": false
+  ]
 }
 ```
 
 ## Responses
 
 ### 200
-Notes items created successfully
+Another collection items created successfully
 
 **Content-Type:** `application/json`
 
+
+**Example: success**
+
+Successful creation
+
 ```json
-[
-  {
-    "title": "Title 1",
-    "properties": {
-      "status": "to_write"
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "New Collection Item",
+      "properties": {
+        "status": "Active",
+        "priority": "High",
+        "assignee": "John Doe"
+      }
     }
-  }
-]
+  ]
+}
+```
+
+**Example: partialFailure**
+
+Partial failure with some items failing
+
+```json
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Successfully Created Item",
+      "properties": {
+        "status": "Active"
+      }
+    }
+  ],
+  "ignoredItems": [
+    {
+      "title": "Invalid Item Missing Required Field"
+    }
+  ]
+}
 ```
 
 ---
 
-# Remove Notes
+# Delete Another collection
 
-`DELETE /collections/notes/items`
+`DELETE /collections/another_collection/items`
 
-Delete notes items. Items may already be deleted, causing partial success.
+Delete another collection items. Items may already be deleted, causing partial success.
 
 ## Request Body
 
@@ -1022,23 +1133,30 @@ Delete notes items. Items may already be deleted, causing partial success.
 ## Responses
 
 ### 200
-Notes items deleted successfully
+Another collection items deleted successfully
 
 **Content-Type:** `application/json`
 
 ```json
-[
-  "string"
-]
+{
+  "items": [
+    {
+      "id": "3"
+    },
+    {
+      "id": "4"
+    }
+  ]
+}
 ```
 
 ---
 
-# Modify Notes
+# Update Another collection
 
-`PUT /collections/notes/items`
+`PUT /collections/another_collection/items`
 
-Update existing notes items. Item deletion or schema changes may cause errors.
+Update existing another collection items. Item deletion or schema changes may cause errors.
 
 ## Request Body
 
@@ -1050,31 +1168,61 @@ Update existing notes items. Item deletion or schema changes may cause errors.
     {
       "id": "string",
       "title": "string",
-      "properties": {
-        "status": "to_write"
-      }
+      "properties": {}
     }
-  ],
-  "allowNewSelectOptions": false
+  ]
 }
 ```
 
 ## Responses
 
 ### 200
-Notes items updated successfully
+Another collection items updated successfully
 
 **Content-Type:** `application/json`
 
+
+**Example: success**
+
+Successful update
+
 ```json
-[
-  {
-    "title": "Title 1",
-    "properties": {
-      "status": "to_write"
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Updated Collection Item Title",
+      "properties": {
+        "status": "Completed",
+        "priority": "Medium",
+        "completedDate": "2025-01-15"
+      }
     }
-  }
-]
+  ]
+}
+```
+
+**Example: partialFailure**
+
+Partial failure with some items failing
+
+```json
+{
+  "items": [
+    {
+      "id": "3",
+      "title": "Successfully Updated Item",
+      "properties": {
+        "status": "Completed"
+      }
+    }
+  ],
+  "ignoredItems": [
+    {
+      "id": "999"
+    }
+  ]
+}
 ```
 
 ---

@@ -175,8 +175,10 @@ export class MyMCP extends McpAgent {
 							};
 						}
 
-						const createdPage = (await pageResponse.json()) as InsertedBlock[];
-						const pageId = createdPage[0].id;
+						const createdPageData = (await pageResponse.json()) as any;
+						// Handle new API format: response is now an object, not an array
+						const createdPage = Array.isArray(createdPageData) ? createdPageData[0] : createdPageData;
+						const pageId = createdPage.id;
 
 						// Step 2: If there's content, insert it into the page
 						if (contentMarkdown.trim()) {
@@ -213,8 +215,9 @@ export class MyMCP extends McpAgent {
 								};
 							}
 
-							const contentBlocks =
-								(await contentResponse.json()) as InsertedBlock[];
+							const contentBlocksData = (await contentResponse.json()) as any;
+							// Handle new API format: response is now an object, not an array
+							const contentBlocks = Array.isArray(contentBlocksData) ? contentBlocksData : [contentBlocksData];
 							return {
 								content: [
 									{
@@ -267,7 +270,9 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const insertedBlocks = (await response.json()) as InsertedBlock[];
+					const insertedBlocksData = (await response.json()) as any;
+					// Handle new API format: response is now an object, not an array
+					const insertedBlocks = Array.isArray(insertedBlocksData) ? insertedBlocksData : [insertedBlocksData];
 					return {
 						content: [
 							{
@@ -337,12 +342,15 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const deletedIds = (await response.json()) as string[];
+					const responseData = (await response.json()) as any;
+					// Handle new API format: other endpoints return response.items instead of response
+					const deletedIds = responseData.items || responseData;
+					const deletedCount = Array.isArray(deletedIds) ? deletedIds.length : 1;
 					return {
 						content: [
 							{
 								type: "text",
-								text: `Successfully deleted block ${id}. Deleted ${deletedIds.length} block(s).`,
+								text: `Successfully deleted block ${id}. Deleted ${deletedCount} block(s).`,
 							},
 						],
 					};
@@ -419,7 +427,9 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const blocks = (await response.json()) as any[];
+					const responseData = (await response.json()) as any;
+					// Handle new API format: response is now an object, not an array
+					const blocks = Array.isArray(responseData) ? responseData : [responseData];
 					const markdown = this.convertBlocksToMarkdown(blocks);
 
 					return {
@@ -516,8 +526,10 @@ export class MyMCP extends McpAgent {
 						};
 					}
 
-					const results = (await response.json()) as any[];
-					const formatted = this.formatSearchResults(results);
+					const responseData = (await response.json()) as any;
+					// Handle new API format: other endpoints return response.items instead of response
+					const results = responseData.items || responseData;
+					const formatted = this.formatSearchResults(Array.isArray(results) ? results : [results]);
 
 					return {
 						content: [

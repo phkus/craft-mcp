@@ -149,6 +149,18 @@ Collections in Craft are similar to Notion databases - structured tables with cu
    - Returns: JSON array of updated items
    - Calls: `PUT /collections/{collectionName}/items` on Craft API
 
+## Important: Craft API Breaking Changes (November 2025)
+
+The Craft API has changed its response format. The MCP server code has been updated to handle both old and new formats for backward compatibility:
+
+- **GET /blocks**: Now returns a single object instead of an array (`response` instead of `response[0]`)
+- **POST /blocks**: Now returns a single object instead of an array
+- **DELETE /blocks**: Now returns `response.items` instead of `response` array
+- **GET /blocks/search**: Now returns `response.items` instead of `response` array
+- **GET /collections/{name}/items**: No change (was already returning objects)
+
+The server code uses fallback logic (`responseData.items || responseData`) to support both formats during the transition period.
+
 ## Craft API Configuration
 
 ### Document Setup
