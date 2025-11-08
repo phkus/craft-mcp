@@ -5,6 +5,21 @@ import { z } from "zod";
 // Environment variables interface
 interface Env {
 	CRAFT_DOCUMENTS: string;
+	// GitHub OAuth credentials
+	GITHUB_CLIENT_ID?: string;
+	GITHUB_CLIENT_SECRET?: string;
+	// Optional: Allowed GitHub usernames for access control
+	ALLOWED_USERNAMES?: string;
+	// KV namespace for OAuth token storage
+	OAUTH_KV?: KVNamespace;
+}
+
+// GitHub user info interface
+interface GitHubUser {
+	login: string;
+	id: number;
+	name: string;
+	email: string;
 }
 
 // Type definition for inserted blocks
@@ -1014,17 +1029,87 @@ export class MyMCP extends McpAgent {
 	}
 }
 
-// Export the fetch handler with routing
+/**
+ * Main fetch handler
+ *
+ * Note: GitHub OAuth authentication structure is in place but not fully implemented yet.
+ * The full implementation requires the @cloudflare/workers-oauth-provider library
+ * and proper OAuth flow setup as described in:
+ * https://developers.cloudflare.com/agents/guides/remote-mcp-server/#add-authentication
+ *
+ * For now, the server operates in non-authenticated mode.
+ */
 export default {
 	fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
 
+		// MCP endpoints (currently without authentication)
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
 			return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
 		}
 
 		if (url.pathname === "/mcp") {
 			return MyMCP.serve("/mcp").fetch(request, env, ctx);
+		}
+
+		// Landing page
+		if (url.pathname === "/" || url.pathname === "/login") {
+			const hasOAuthConfig = !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET && env.OAUTH_KV);
+
+			return new Response(
+				`<!DOCTYPE html>
+<html>
+<head>
+	<title>Craft MCP Server</title>
+	<style>
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 100vh;
+			margin: 0;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		}
+		.container {
+			background: white;
+			padding: 3rem;
+			border-radius: 1rem;
+			box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+			text-align: center;
+			max-width: 500px;
+		}
+		h1 { color: #333; margin-bottom: 1rem; }
+		p { color: #666; line-height: 1.6; }
+		.info { background: #d1ecf1; color: #0c5460; padding: 1rem; border-radius: 0.5rem; margin-top: 1.5rem; }
+		.warning { background: #fff3cd; color: #856404; padding: 1rem; border-radius: 0.5rem; margin-top: 1.5rem; }
+		.status { font-size: 0.9em; margin-top: 1rem; }
+		code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>🚀 Craft MCP Server</h1>
+		<p>Remote Model Context Protocol server for Craft document management</p>
+		${hasOAuthConfig ? `
+		<div class="info">
+			<strong>ℹ️ OAuth Configuration Detected</strong>
+			<p class="status">GitHub OAuth credentials are configured, but full authentication is not yet implemented in this version.</p>
+		</div>
+		` : `
+		<div class="warning">
+			<strong>⚠️ Running in Non-Authenticated Mode</strong>
+			<p class="status">To enable GitHub authentication, configure: <code>GITHUB_CLIENT_ID</code>, <code>GITHUB_CLIENT_SECRET</code>, and <code>OAUTH_KV</code></p>
+		</div>
+		`}
+		<p style="margin-top: 2rem; font-size: 0.9em; color: #888;">
+			Connect via MCP endpoint: <code>${url.origin}/mcp</code>
+		</p>
+	</div>
+</body>
+</html>`,
+				{ headers: { "Content-Type": "text/html" } }
+			);
 		}
 
 		return new Response("Not found", { status: 404 });
