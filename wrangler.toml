@@ -18,7 +18,7 @@ new_sqlite_classes = ["MyMCP"]
 # Create this namespace with: wrangler kv namespace create SESSIONS
 # For production, bind the namespace ID in Cloudflare Dashboard or use wrangler
 [[kv_namespaces]]
-binding = "SESSIONS"
+binding = "OAUTH_KV"
 id = "4d15ada196da434ab5af94db8c044be4"
 
 # Document configuration

@@ -31,7 +31,7 @@
 	},
 	"kv_namespaces": [
 		{
-			"binding": "SESSIONS",
+			"binding": "OAUTH_KV",
 			"id": "4d15ada196da434ab5af94db8c044be4",
 			"remote": true
 		}
