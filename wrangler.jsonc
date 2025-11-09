@@ -34,6 +34,11 @@
 			"binding": "OAUTH_KV",
 			"id": "YOUR_KV_NAMESPACE_ID_HERE",
 			"remote": true
+		},
+		{
+			"binding": "SESSIONS",
+			"id": "4d15ada196da434ab5af94db8c044be4",
+			"remote": true
 		}
 	]
 }

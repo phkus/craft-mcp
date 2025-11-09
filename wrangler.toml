@@ -19,7 +19,7 @@ new_sqlite_classes = ["MyMCP"]
 # For production, bind the namespace ID in Cloudflare Dashboard or use wrangler
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "YOUR_KV_NAMESPACE_ID_HERE"
+id = "4d15ada196da434ab5af94db8c044be4"
 
 # Document configuration
 # Add your Craft document links here in JSON format
