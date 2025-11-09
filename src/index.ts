@@ -103,8 +103,20 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 					.optional()
 					.default(false)
 					.describe("If true, wraps content in a new page block (first heading becomes page title)."),
+				variant: z
+					.enum(["1", "2", "3"])
+					.optional()
+					.default("1")
+					.describe("Color variant for the inserted block: '1' = purple (default), '2' = red, '3' = blue. Use different variants to show alternatives rather than continuations."),
 			},
-			async ({ document, markdown, parent, position, subpage }) => {
+			async ({ document, markdown, parent, position, subpage, variant }) => {
+			// Map variant to color
+			const variantColors: Record<string, string> = {
+				"1": "#9b59b6", // Purple (default)
+				"2": "#e74c3c", // Red
+				"3": "#3498db", // Blue
+			};
+			const color = variantColors[variant || "1"];
 				try {
 					// Get document URL
 					const documentUrl = this.documents[document];
@@ -191,7 +203,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 											{
 												type: "text",
 												markdown: contentMarkdown.trim(),
-												color: "#9b59b6", // Purple color for AI-generated content
+												color: color, // Color based on variant parameter
 											},
 										],
 										position: {
@@ -244,7 +256,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 							{
 								type: "text",
 								markdown: markdown,
-								color: "#9b59b6", // Purple color for AI-generated content
+								color: color, // Color based on variant parameter
 							},
 						],
 						position: parent

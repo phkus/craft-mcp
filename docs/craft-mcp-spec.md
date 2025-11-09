@@ -1,103 +1,48 @@
-# Simplified Craft MCP Server - Tool Specifications
+# Craft MCP Server - Tool Specifications
 
 ## Tool List
 
-1. **`insertText`** - Insert markdown content into the document
-2. **`deleteText`** - Delete a page or heading section (destructive)
-3. **`fetchBlocks`** - Read document content with IDs
-4. **`search`** - Search within the document
+0. **`listDocuments`** - Show available documents
+1. **`readDocument`** - Read document content with IDs
+2. **`search`** - Search within the document
+3. **`insertText`** - Insert markdown content into the document (with color variants)
 
 ---
 
 ## Tool Descriptions
 
-### 1. insertText
+### 0. listDocuments
 
-Insert markdown content into the document, optionally as a new subpage.
-
-**Parameters:**
-```typescript
-{
-  markdown: string;          // Markdown content to insert
-  parent?: string;           // ID of page or heading to insert into (omit for root page)
-  position: "start" | "end"; // Where to insert within the parent
-  subpage?: boolean;         // If true, wraps content in a new page block (default: false)
-}
-```
-
-**Behavior:**
-- When `parent` is omitted, inserts at the root page level
-- When `parent` is a page or heading ID, inserts as children of that element
-- When `subpage: true`, creates a new page block and inserts the markdown as its content
-  - The first heading (if present) becomes the page title
-  - If no heading is present, the page will have an empty title
-- Standard markdown is supported: headings (#, ##, etc.), lists (-, 1.), blockquotes (>), inline formatting (**bold**, *italic*, `code`)
-- Craft-specific HTML tags supported:
-  - `<callout></callout>` for callout blocks
-  - `<caption></caption>` for caption text style
-
-**Examples:**
-```javascript
-// Insert at root, end of document
-insertText({
-  markdown: "# New Section\n\nSome content",
-  position: "end"
-})
-
-// Insert into a specific heading
-insertText({
-  markdown: "- New bullet point\n- Another point",
-  parent: "heading-id-123",
-  position: "end"
-})
-
-// Create a new subpage
-insertText({
-  markdown: "# Subpage Title\n\nThis becomes a separate page",
-  parent: "page-id-456",
-  position: "start",
-  subpage: true
-})
-```
-
----
-
-### 2. deleteText
-
-Delete a page or heading and all its content. **WARNING: This is destructive and irreversible. Deleting a heading or page removes the entire section including all nested content.**
+Show available documents configured in the server.
 
 **Parameters:**
 ```typescript
 {
-  id: string; // ID of the page or heading to delete
+  // No parameters
 }
 ```
 
-**Behavior:**
-- Deletes the specified page or heading block
-- Also deletes ALL content nested under that block
-- This includes text, lists, images, subpages, and any other nested elements
-- Cannot be undone
+**Returns:**
+List of configured document names that can be used with other tools.
 
 **Example:**
 ```javascript
-// Delete a heading and everything under it
-deleteText({
-  id: "heading-id-123"
-})
+listDocuments()
+// Returns: "Available documents: MCP test, Possible Futures"
 ```
 
 ---
 
-### 3. fetchBlocks
+### 1. readDocument
 
 Read document content in a markdown format with IDs embedded for pages and headings.
 
 **Parameters:**
 ```typescript
 {
-  id?: string;      // ID of page or heading to fetch (omit for root page)
-  maxDepth?: number; // Maximum nesting depth to fetch (default: -1 for all)
+  document: string;    // Name of the document to read (e.g., "MCP test")
+  id?: string;         // ID of page or heading to fetch (omit for root page)
+  maxDepth?: number;   // Maximum nesting depth to fetch (default: -1 for all)
 }
 ```
 
@@ -107,94 +52,129 @@ Markdown text with XML tags for structure and IDs embedded in page and heading e
 **Format:**
 - Pages: `<page id="..."><pageTitle>...</pageTitle><content>...</content></page>`
 - Headings: `# Heading Text <!-- id:... -->`
-  - Pattern for all heading levels: `#`, `##`, `###`, `####` followed by `<!-- id:... -->`
-- Regular markdown content (paragraphs, lists, blockquotes) rendered normally
-- Nested pages appear as `<page>` tags within parent `<content>` tags
-- Collections rendered as: `<collection><title>...</title><content>...</content></collection>` (no IDs needed since collections won't be edited via this API)
-
-**Example Output:**
-```markdown
-<page id="0">
-  <pageTitle>Root Document</pageTitle>
-  <content>
-    # Introduction <!-- id:10 -->
-    
-    This is the introduction paragraph.
-    
-    - First point
-    - Second point
-    
-    ## Subsection <!-- id:11 -->
-    
-    More content here.
-    
-    <page id="20">
-      <pageTitle>Nested Subpage</pageTitle>
-      <content>
-        ### Subpage Heading <!-- id:21 -->
-        
-        Content within the subpage.
-      </content>
-    </page>
-    
-    ## Another Section <!-- id:12 -->
-    
-    Final content.
-  </content>
-</page>
-```
-
-**Depth Control:**
-- `maxDepth: 0` - Only the specified block, no children
-- `maxDepth: 1` - The block and its immediate children
-- `maxDepth: -1` - All descendants (default)
+- Collections: `<collection id="..." name="..."><schema>...</schema><items count="N"></items></collection>`
 
 **Example:**
 ```javascript
 // Fetch entire document
-const content = fetchBlocks();
+readDocument({ document: "MCP test" })
 
 // Fetch specific page with limited depth
-const section = fetchBlocks({
+readDocument({
+  document: "MCP test",
   id: "page-id-123",
   maxDepth: 2
-});
+})
 ```
 
 ---
 
-### 4. search
+### 2. search
 
 Search for text within the document using pattern matching.
 
 **Parameters:**
 ```typescript
 {
-  pattern: string;         // Search pattern (supports regex)
-  caseSensitive?: boolean; // Case-sensitive search (default: false)
-  beforeBlockCount?: number; // Context blocks before match (default: 2)
-  afterBlockCount?: number;  // Context blocks after match (default: 2)
+  document: string;            // Name of the document to search (e.g., "MCP test")
+  pattern: string;             // Search pattern (supports regex)
+  caseSensitive?: boolean;     // Case-sensitive search (default: false)
+  beforeBlockCount?: number;   // Context blocks before match (default: 2)
+  afterBlockCount?: number;    // Context blocks after match (default: 2)
 }
 ```
 
 **Returns:**
-Search results showing matched blocks with their parent context. Format:
-- Matched blocks prefixed with `<blockId>: <blockContent>`
-- Adjacent context blocks prefixed with `<blockId>- <blockContent>`
-- Skipped blocks indicated with `... N Blocks Skipped ...`
-- Results grouped by parent page/heading with path shown
+Search results showing matched blocks with their parent context and hierarchical path.
 
 **Example:**
 ```javascript
 // Simple text search
 search({
+  document: "MCP test",
   pattern: "climate change"
 })
 
 // Case-sensitive regex search
 search({
+  document: "MCP test",
   pattern: "Project [0-9]+",
   caseSensitive: true
+})
+```
+
+---
+
+### 3. insertText
+
+Insert markdown content into the document, optionally as a new subpage, with automatic color coding.
+
+**Parameters:**
+```typescript
+{
+  document: string;          // Name of the document to insert into (e.g., "MCP test")
+  markdown: string;          // Markdown content to insert
+  parent?: string;           // ID of page or heading to insert into (omit for root page)
+  position: "start" | "end"; // Where to insert within the parent
+  subpage?: boolean;         // If true, wraps content in a new page block (default: false)
+  variant?: "1" | "2" | "3"; // Color variant (default: "1")
+                             // "1" = purple (#9b59b6) - standard additions
+                             // "2" = red (#e74c3c) - alternative interpretations
+                             // "3" = blue (#3498db) - additional alternatives
+}
+```
+
+**Behavior:**
+- When `parent` is omitted, inserts at the root page level
+- When `parent` is a page or heading ID, inserts as children of that element
+- When `subpage: true`, creates a new page block and inserts the markdown as its content
+  - The first heading (if present) becomes the page title
+  - If no heading is present, the page will have an empty title
+- All inserted blocks are automatically colored based on the `variant` parameter:
+  - Variant 1 (purple): Default for standard AI-generated content
+  - Variant 2 (red): Use for alternative interpretations or formulations
+  - Variant 3 (blue): Use for additional alternatives
+- Standard markdown is supported: headings (#, ##, etc.), lists (-, 1.), blockquotes (>), inline formatting (**bold**, *italic*, `code`)
+
+**Examples:**
+```javascript
+// Insert at root, end of document (purple by default)
+insertText({
+  document: "MCP test",
+  markdown: "# New Section\n\nSome content",
+  position: "end"
+})
+
+// Insert alternative interpretation in red
+insertText({
+  document: "MCP test",
+  markdown: "Alternative interpretation of the data...",
+  parent: "heading-id-123",
+  position: "end",
+  variant: "2"
+})
+
+// Create three different formulations
+insertText({
+  document: "MCP test",
+  markdown: "First formulation...",
+  parent: "page-id-456",
+  position: "end",
+  variant: "1"
+})
+insertText({
+  document: "MCP test",
+  markdown: "Alternative formulation...",
+  parent: "page-id-456",
+  position: "end",
+  variant: "2"
+})
+insertText({
+  document: "MCP test",
+  markdown: "Third option...",
+  parent: "page-id-456",
+  position: "end",
+  variant: "3"
 })
 ```
 
@@ -204,23 +184,35 @@ search({
 
 ### Underlying Craft API Mapping
 
-This simplified server wraps the official Craft API tools:
+This server uses the official Craft API endpoints:
 
-- `insertText` → calls `insertMarkdown` or `insertBlocks` (when subpage=true)
-- `deleteText` → calls `deleteBlocks`
-- `fetchBlocks` → calls `fetchBlocks` with custom post-processing to add IDs
-- `search` → calls `search` (mostly pass-through)
+- `listDocuments` → returns document list from environment configuration
+- `readDocument` → calls `GET /blocks` with custom post-processing to add IDs
+- `search` → calls `GET /blocks/search`
+- `insertText` → calls `POST /blocks` with color parameter based on variant
+
+### Color Coding for Authorship Tracking
+
+All AI-generated content is automatically colored to distinguish it from human-written content:
+- **Purple** (`#9b59b6`) - Variant 1, standard AI additions
+- **Red** (`#e74c3c`) - Variant 2, alternative interpretations
+- **Blue** (`#3498db`) - Variant 3, additional alternatives
+
+This enables:
+- Clear visual separation between AI and human content
+- Divergent thinking by presenting multiple colored alternatives
+- Intentional editing when users remove colors to take ownership
 
 ### ID Format
 
-The server should extract IDs from the Craft API JSON responses and inject them into the markdown output:
-- Pages already have `id` field in JSON
-- Text blocks with `textStyle: "h1"/"h2"/"h3"/"h4"` have `id` fields
-- Use HTML comments for headings: `<!-- id:12345 -->`
-- Use XML attributes for pages: `<page id="12345">`
+The server extracts IDs from Craft API JSON responses and embeds them in markdown:
+- Pages: `<page id="12345">...</page>`
+- Headings: `<!-- id:12345 -->`
+- Collections: `<collection id="12345" name="...">...</collection>`
 
 ### Error Handling
 
+- Unknown document name → return error with list of available documents
 - Invalid parent ID → return error message indicating ID not found
 - Invalid position value → return error with valid options
-- Empty markdown with subpage=true → create empty page (title from first heading if it exists later)
+- Empty markdown with subpage=true → create empty page
