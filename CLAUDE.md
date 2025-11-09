@@ -186,11 +186,11 @@ The server supports optional GitHub OAuth authentication for secure access contr
 5. Copy the **Client ID**
 6. Click "Generate a new client secret" and copy the **Client Secret**
 
-#### 2. Create KV Namespace for OAuth Tokens
+#### 2. Create KV Namespace for Sessions
 
 ```bash
 # Create the KV namespace
-wrangler kv namespace create OAUTH_KV
+wrangler kv namespace create SESSIONS
 
 # Note the namespace ID from the output
 # Update wrangler.toml with the actual namespace ID
@@ -227,7 +227,7 @@ After creating the KV namespace, update `wrangler.toml` with the actual namespac
 
 ```toml
 [[kv_namespaces]]
-binding = "OAUTH_KV"
+binding = "SESSIONS"
 id = "your_actual_kv_namespace_id"
 ```
 
@@ -355,7 +355,7 @@ Each MCP client session gets its own Durable Object instance that loads:
 - `GITHUB_CLIENT_ID` - GitHub OAuth application client ID (optional, for authentication)
 - `GITHUB_CLIENT_SECRET` - GitHub OAuth application client secret (optional, for authentication)
 - `ALLOWED_USERNAMES` - Comma-separated list of allowed GitHub usernames (optional)
-- `OAUTH_KV` - KV namespace binding for OAuth token storage (required if using authentication)
+- `SESSIONS` - KV namespace binding for session storage (required if using authentication)
 
 ## Key Dependencies
 

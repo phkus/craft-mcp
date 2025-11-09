@@ -14,11 +14,11 @@ class_name = "MyMCP"
 tag = "v1"
 new_sqlite_classes = ["MyMCP"]
 
-# KV namespace for OAuth token storage
-# Create this namespace with: wrangler kv namespace create OAUTH_KV
+# KV namespace for session storage
+# Create this namespace with: wrangler kv namespace create SESSIONS
 # For production, bind the namespace ID in Cloudflare Dashboard or use wrangler
 [[kv_namespaces]]
-binding = "OAUTH_KV"
+binding = "SESSIONS"
 id = "YOUR_KV_NAMESPACE_ID_HERE"
 
 # Document configuration
