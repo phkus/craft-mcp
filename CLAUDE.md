@@ -163,14 +163,23 @@ The server code uses fallback logic (`responseData.items || responseData`) to su
 
 ## Authentication
 
-The server supports optional GitHub OAuth authentication for secure access control. When enabled, users must authenticate via GitHub before accessing the MCP tools.
+The server uses **OAuth 2.1 with PKCE** for secure authentication of MCP clients via GitHub. This implementation follows the official Cloudflare template for authenticated remote MCP servers.
+
+### Architecture
+
+The server implements a dual OAuth pattern:
+- **OAuth Server** to MCP clients (using `@cloudflare/workers-oauth-provider`)
+- **OAuth Client** to GitHub (for user identity verification)
+
+When an MCP client connects, it initiates an OAuth 2.1 flow with the server, which then authenticates the user via GitHub and issues bearer tokens that the client includes in subsequent requests.
 
 ### Features
 
-- **Optional Authentication**: Server works with or without OAuth configured
+- **OAuth 2.1 with PKCE**: Modern OAuth flow designed for native applications and CLI tools
 - **GitHub OAuth Integration**: Secure authentication using GitHub accounts
 - **User Access Control**: Optional whitelist of allowed GitHub usernames
-- **Automatic Token Management**: OAuth tokens stored securely in Cloudflare KV
+- **Bearer Token Authentication**: MCP clients authenticate with `Authorization: Bearer <token>` headers
+- **Automatic Token Management**: OAuth tokens and state stored securely in Cloudflare KV
 
 ### Setup Instructions
 
@@ -186,11 +195,11 @@ The server supports optional GitHub OAuth authentication for secure access contr
 5. Copy the **Client ID**
 6. Click "Generate a new client secret" and copy the **Client Secret**
 
-#### 2. Create KV Namespace for Sessions
+#### 2. Create KV Namespace for OAuth Tokens
 
 ```bash
 # Create the KV namespace
-wrangler kv namespace create SESSIONS
+wrangler kv namespace create OAUTH_KV
 
 # Note the namespace ID from the output
 # Update wrangler.toml with the actual namespace ID
@@ -227,7 +236,7 @@ After creating the KV namespace, update `wrangler.toml` with the actual namespac
 
 ```toml
 [[kv_namespaces]]
-binding = "SESSIONS"
+binding = "OAUTH_KV"
 id = "your_actual_kv_namespace_id"
 ```
 
@@ -244,22 +253,47 @@ ALLOWED_USERNAMES=johndoe,janedoe,bobsmith
 
 ### Authentication Flow
 
-1. User visits the MCP server URL
-2. Server displays login page with "Sign in with GitHub" button
-3. User clicks button and is redirected to GitHub for authorization
-4. After successful authentication, user is redirected back to the server
-5. Server validates the user (checks ALLOWED_USERNAMES if configured)
-6. Authenticated session is stored in KV namespace
-7. User can now access MCP tools via their MCP client (e.g., Claude Desktop)
+The OAuth 2.1 flow works seamlessly with MCP clients:
 
-### Non-Authenticated Mode
+1. **MCP Client Initiates Connection**: Client connects to `/sse` or `/mcp` endpoint
+2. **OAuth 2.1 Flow Begins**: Server redirects client to authorization endpoint (`/authorize`)
+3. **GitHub Authentication**: User is redirected to GitHub for authentication
+4. **GitHub Callback**: After successful auth, GitHub redirects to `/callback`
+5. **User Validation**: Server validates user (checks ALLOWED_USERNAMES if configured)
+6. **Token Exchange**: MCP client exchanges authorization code for bearer token at `/token` endpoint
+7. **Authenticated Requests**: Client includes `Authorization: Bearer <token>` header in all subsequent MCP requests
+8. **Token Validation**: Server validates bearer token on each request
 
-If OAuth environment variables are not configured, the server automatically runs in non-authenticated mode:
-- All MCP endpoints remain accessible without authentication
-- A warning message is logged to console
-- Landing page displays a warning about missing authentication
+### User Context in MCP Tools
 
-This allows for easy local development and testing without setting up OAuth.
+After successful authentication, the server has access to authenticated user information via `this.props`:
+
+```typescript
+type Props = {
+  login: string;        // GitHub username
+  name: string;         // Full name
+  email: string;        // Email address
+  accessToken: string;  // GitHub access token (for API calls)
+};
+```
+
+This allows MCP tools to access user-specific information and make authenticated calls to external APIs (like GitHub) on behalf of the user.
+
+### MCP Client Configuration
+
+When configuring your MCP client (e.g., Claude Desktop), use the SSE endpoint:
+
+```json
+{
+  "mcpServers": {
+    "craft": {
+      "url": "https://craft-mcp.YOUR_SUBDOMAIN.workers.dev/sse"
+    }
+  }
+}
+```
+
+The OAuth flow will be handled automatically by the MCP client when it first connects.
 
 ## Craft API Configuration
 
@@ -355,13 +389,14 @@ Each MCP client session gets its own Durable Object instance that loads:
 - `GITHUB_CLIENT_ID` - GitHub OAuth application client ID (optional, for authentication)
 - `GITHUB_CLIENT_SECRET` - GitHub OAuth application client secret (optional, for authentication)
 - `ALLOWED_USERNAMES` - Comma-separated list of allowed GitHub usernames (optional)
-- `SESSIONS` - KV namespace binding for session storage (required if using authentication)
+- `OAUTH_KV` - KV namespace binding for OAuth token storage (required for authentication)
 
 ## Key Dependencies
 
 - `@modelcontextprotocol/sdk@1.19.1` - MCP protocol implementation
 - `agents@^0.2.8` - Cloudflare Agents SDK with McpAgent class
-- `@cloudflare/workers-oauth-provider` - OAuth 2.1 provider for authentication
+- `@cloudflare/workers-oauth-provider` - OAuth 2.1 provider for MCP client authentication
+- `@octokit/rest` - GitHub API client for user authentication
 - `zod@^3.25.76` - Schema validation
 
 ## Future Enhancements

@@ -14,11 +14,11 @@ class_name = "MyMCP"
 tag = "v1"
 new_sqlite_classes = ["MyMCP"]
 
-# KV namespace for session storage
-# Create this namespace with: wrangler kv namespace create SESSIONS
+# KV namespace for OAuth token storage
+# Create this namespace with: wrangler kv namespace create OAUTH_KV
 # For production, bind the namespace ID in Cloudflare Dashboard or use wrangler
 [[kv_namespaces]]
-binding = "SESSIONS"
+binding = "OAUTH_KV"
 id = "4d15ada196da434ab5af94db8c044be4"
 
 # Document configuration
@@ -31,7 +31,8 @@ id = "4d15ada196da434ab5af94db8c044be4"
 [vars]
 CRAFT_DOCUMENTS = '{"Example Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}'
 
-# GitHub OAuth Configuration
+# GitHub OAuth 2.1 Configuration
+# The server uses OAuth 2.1 with PKCE for MCP client authentication
 # IMPORTANT: Set these via Cloudflare Dashboard (Workers → Settings → Variables → Environment Variables)
 # or use wrangler secrets for sensitive values:
 #   wrangler secret put GITHUB_CLIENT_ID
