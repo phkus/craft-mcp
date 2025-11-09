@@ -1,33 +1,9 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-
-// Environment variables interface
-interface Env {
-	CRAFT_DOCUMENTS: string;
-	// GitHub OAuth credentials
-	GITHUB_CLIENT_ID?: string;
-	GITHUB_CLIENT_SECRET?: string;
-	// Optional: Allowed GitHub usernames for access control
-	ALLOWED_USERNAMES?: string;
-	// KV namespace for session storage
-	SESSIONS?: KVNamespace;
-}
-
-// GitHub user info interface
-interface GitHubUser {
-	login: string;
-	id: number;
-	name: string | null;
-	email: string | null;
-}
-
-// Session data interface
-interface SessionData {
-	username: string;
-	githubId: number;
-	expiresAt: number;
-}
+import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import GitHubHandler, { type Env } from "./github-handler.js";
+import type { Props } from "./utils.js";
 
 // Type definition for inserted blocks
 interface InsertedBlock {
@@ -38,8 +14,9 @@ interface InsertedBlock {
 
 /**
  * MCP Server for Craft document management
+ * Props contain authenticated user information from GitHub OAuth
  */
-export class MyMCP extends McpAgent {
+export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "craft-mcp-server",
 		version: "1.0.0",
@@ -1037,316 +1014,17 @@ export class MyMCP extends McpAgent {
 }
 
 /**
- * Check if request has valid session
+ * Export OAuthProvider as default
+ * This acts as the OAuth server for MCP clients
  */
-async function getSessionUser(request: Request, env: Env): Promise<string | null> {
-	if (!env.SESSIONS) return null;
-
-	const cookies = request.headers.get("Cookie");
-	if (!cookies) return null;
-
-	const sessionMatch = cookies.match(/session=([^;]+)/);
-	if (!sessionMatch) return null;
-
-	const sessionId = sessionMatch[1];
-	const sessionDataStr = await env.SESSIONS.get(`session:${sessionId}`);
-	if (!sessionDataStr) return null;
-
-	const sessionData: SessionData = JSON.parse(sessionDataStr);
-
-	// Check if session is expired
-	if (Date.now() > sessionData.expiresAt) {
-		await env.SESSIONS.delete(`session:${sessionId}`);
-		return null;
-	}
-
-	return sessionData.username;
-}
-
-/**
- * Create a new session for authenticated user
- */
-async function createSession(env: Env, username: string, githubId: number): Promise<string> {
-	const sessionId = crypto.randomUUID();
-	const expiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days
-
-	const sessionData: SessionData = {
-		username,
-		githubId,
-		expiresAt,
-	};
-
-	await env.SESSIONS!.put(
-		`session:${sessionId}`,
-		JSON.stringify(sessionData),
-		{ expirationTtl: 7 * 24 * 60 * 60 } // 7 days
-	);
-
-	return sessionId;
-}
-
-/**
- * Main fetch handler with GitHub OAuth authentication
- */
-export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		const url = new URL(request.url);
-
-		// Check if OAuth is configured
-		const isOAuthConfigured = !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET && env.SESSIONS);
-
-		// Handle GitHub OAuth callback
-		if (url.pathname === "/callback" && isOAuthConfigured) {
-			const code = url.searchParams.get("code");
-
-			if (!code) {
-				return new Response("Missing authorization code", { status: 400 });
-			}
-
-			// Exchange code for access token
-			const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "application/json",
-				},
-				body: JSON.stringify({
-					client_id: env.GITHUB_CLIENT_ID,
-					client_secret: env.GITHUB_CLIENT_SECRET,
-					code,
-				}),
-			});
-
-			const tokenData = (await tokenResponse.json()) as any;
-			if (!tokenData.access_token) {
-				return new Response("Failed to get access token from GitHub", { status: 500 });
-			}
-
-			// Get user info from GitHub
-			const userResponse = await fetch("https://api.github.com/user", {
-				headers: {
-					Authorization: `Bearer ${tokenData.access_token}`,
-					Accept: "application/json",
-				},
-			});
-
-			const githubUser = (await userResponse.json()) as GitHubUser;
-
-			// Check if user is allowed
-			if (env.ALLOWED_USERNAMES) {
-				const allowedUsernames = env.ALLOWED_USERNAMES.split(",").map(u => u.trim().toLowerCase());
-				if (!allowedUsernames.includes(githubUser.login.toLowerCase())) {
-					return new Response(
-						`<!DOCTYPE html>
-<html>
-<head>
-	<title>Access Denied</title>
-	<style>
-		body {
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			min-height: 100vh;
-			margin: 0;
-			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		}
-		.container {
-			background: white;
-			padding: 3rem;
-			border-radius: 1rem;
-			box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-			text-align: center;
-			max-width: 500px;
-		}
-		h1 { color: #dc3545; margin-bottom: 1rem; }
-		p { color: #666; line-height: 1.6; }
-	</style>
-</head>
-<body>
-	<div class="container">
-		<h1>⛔ Access Denied</h1>
-		<p>User <strong>${githubUser.login}</strong> is not authorized to access this MCP server.</p>
-		<p style="font-size: 0.9em; margin-top: 1.5rem;">Contact the server administrator if you believe this is an error.</p>
-	</div>
-</body>
-</html>`,
-						{ status: 403, headers: { "Content-Type": "text/html" } }
-					);
-				}
-			}
-
-			// Create session
-			const sessionId = await createSession(env, githubUser.login, githubUser.id);
-
-			// Redirect to home with session cookie
-			return new Response(null, {
-				status: 302,
-				headers: {
-					"Location": "/",
-					"Set-Cookie": `session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
-				},
-			});
-		}
-
-		// Handle login redirect to GitHub
-		if (url.pathname === "/login" && isOAuthConfigured) {
-			const githubAuthUrl = new URL("https://github.com/login/oauth/authorize");
-			githubAuthUrl.searchParams.set("client_id", env.GITHUB_CLIENT_ID!);
-			githubAuthUrl.searchParams.set("redirect_uri", `${url.origin}/callback`);
-			githubAuthUrl.searchParams.set("scope", "read:user user:email");
-
-			return Response.redirect(githubAuthUrl.toString(), 302);
-		}
-
-		// Handle logout
-		if (url.pathname === "/logout" && isOAuthConfigured) {
-			const cookies = request.headers.get("Cookie");
-			if (cookies) {
-				const sessionMatch = cookies.match(/session=([^;]+)/);
-				if (sessionMatch && env.SESSIONS) {
-					await env.SESSIONS.delete(`session:${sessionMatch[1]}`);
-				}
-			}
-
-			return new Response(null, {
-				status: 302,
-				headers: {
-					"Location": "/",
-					"Set-Cookie": "session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
-				},
-			});
-		}
-
-		// Check authentication for MCP endpoints
-		if (url.pathname === "/mcp" || url.pathname.startsWith("/sse")) {
-			if (isOAuthConfigured) {
-				const username = await getSessionUser(request, env);
-
-				if (!username) {
-					return new Response(
-						JSON.stringify({ error: "Authentication required" }),
-						{
-							status: 401,
-							headers: { "Content-Type": "application/json" }
-						}
-					);
-				}
-			}
-
-			// Serve MCP endpoints
-			if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-				return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
-			}
-
-			if (url.pathname === "/mcp") {
-				return MyMCP.serve("/mcp").fetch(request, env, ctx);
-			}
-		}
-
-		// Landing page
-		if (url.pathname === "/" || url.pathname === "/login") {
-			const username = isOAuthConfigured ? await getSessionUser(request, env) : null;
-			const isAuthenticated = !!username;
-
-			return new Response(
-				`<!DOCTYPE html>
-<html>
-<head>
-	<title>Craft MCP Server</title>
-	<style>
-		body {
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			min-height: 100vh;
-			margin: 0;
-			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		}
-		.container {
-			background: white;
-			padding: 3rem;
-			border-radius: 1rem;
-			box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-			text-align: center;
-			max-width: 500px;
-		}
-		h1 { color: #333; margin-bottom: 0.5rem; }
-		.subtitle { color: #666; margin-bottom: 2rem; font-size: 0.95em; }
-		.info { background: #d1ecf1; color: #0c5460; padding: 1rem; border-radius: 0.5rem; margin: 1.5rem 0; text-align: left; }
-		.success { background: #d4edda; color: #155724; padding: 1rem; border-radius: 0.5rem; margin: 1.5rem 0; text-align: left; }
-		.warning { background: #fff3cd; color: #856404; padding: 1rem; border-radius: 0.5rem; margin: 1.5rem 0; text-align: left; }
-		.info h3, .success h3, .warning h3 { margin: 0 0 0.5rem 0; font-size: 1em; }
-		.info p, .success p, .warning p { margin: 0; font-size: 0.9em; line-height: 1.5; }
-		a.button {
-			display: inline-flex;
-			align-items: center;
-			gap: 0.5rem;
-			background: #24292e;
-			color: white;
-			padding: 0.875rem 2rem;
-			border-radius: 0.5rem;
-			text-decoration: none;
-			font-weight: 600;
-			transition: background 0.2s;
-			margin-top: 1rem;
-		}
-		a.button:hover { background: #1a1f23; }
-		a.button.secondary {
-			background: #6c757d;
-		}
-		a.button.secondary:hover {
-			background: #5a6268;
-		}
-		code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
-	</style>
-</head>
-<body>
-	<div class="container">
-		<h1>🚀 Craft MCP Server</h1>
-		<p class="subtitle">Remote Model Context Protocol server for Craft documents</p>
-
-		${
-			isOAuthConfigured
-				? isAuthenticated
-					? `
-		<div class="success">
-			<h3>✅ Authenticated</h3>
-			<p>Signed in as <strong>${username}</strong></p>
-		</div>
-		<p style="margin-top: 2rem; font-size: 0.9em; color: #888;">
-			Connect via MCP endpoint: <code>${url.origin}/mcp</code>
-		</p>
-		<a href="/logout" class="button secondary">Sign Out</a>
-		`
-					: `
-		<div class="info">
-			<h3>🔒 Authentication Required</h3>
-			<p>This server requires GitHub authentication to access MCP tools.</p>
-		</div>
-		<a href="/login" class="button">
-			Sign in with GitHub
-		</a>
-		`
-				: `
-		<div class="warning">
-			<h3>⚠️ Running in Non-Authenticated Mode</h3>
-			<p>To enable GitHub authentication, configure:<br>
-			<code>GITHUB_CLIENT_ID</code>, <code>GITHUB_CLIENT_SECRET</code>, and <code>SESSIONS</code> KV namespace</p>
-		</div>
-		<p style="margin-top: 2rem; font-size: 0.9em; color: #888;">
-			Connect via MCP endpoint: <code>${url.origin}/mcp</code>
-		</p>
-		`
-		}
-	</div>
-</body>
-</html>`,
-				{ headers: { "Content-Type": "text/html" } }
-			);
-		}
-
-		return new Response("Not found", { status: 404 });
+export default new OAuthProvider({
+	apiHandlers: {
+		"/sse": MyMCP.serveSSE("/sse"),
+		"/mcp": MyMCP.serve("/mcp"),
 	},
-};
+	authorizeEndpoint: "/authorize",
+	tokenEndpoint: "/token",
+	clientRegistrationEndpoint: "/register",
+	// Type assertion needed because OAuthProvider uses generic types
+	defaultHandler: GitHubHandler as any,
+});
