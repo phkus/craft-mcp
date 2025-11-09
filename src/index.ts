@@ -1,11 +1,9 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-
-// Environment variables interface
-interface Env {
-	CRAFT_DOCUMENTS: string;
-}
+import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import GitHubHandler, { type Env } from "./github-handler.js";
+import type { Props } from "./utils.js";
 
 // Type definition for inserted blocks
 interface InsertedBlock {
@@ -16,8 +14,9 @@ interface InsertedBlock {
 
 /**
  * MCP Server for Craft document management
+ * Props contain authenticated user information from GitHub OAuth
  */
-export class MyMCP extends McpAgent {
+export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "craft-mcp-server",
 		version: "1.0.0",
@@ -1014,19 +1013,18 @@ export class MyMCP extends McpAgent {
 	}
 }
 
-// Export the fetch handler with routing
-export default {
-	fetch(request: Request, env: Env, ctx: ExecutionContext) {
-		const url = new URL(request.url);
-
-		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-			return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
-		}
-
-		if (url.pathname === "/mcp") {
-			return MyMCP.serve("/mcp").fetch(request, env, ctx);
-		}
-
-		return new Response("Not found", { status: 404 });
+/**
+ * Export OAuthProvider as default
+ * This acts as the OAuth server for MCP clients
+ */
+export default new OAuthProvider({
+	apiHandlers: {
+		"/sse": MyMCP.serveSSE("/sse"),
+		"/mcp": MyMCP.serve("/mcp"),
 	},
-};
+	authorizeEndpoint: "/authorize",
+	tokenEndpoint: "/token",
+	clientRegistrationEndpoint: "/register",
+	// Type assertion needed because OAuthProvider uses generic types
+	defaultHandler: GitHubHandler as any,
+});

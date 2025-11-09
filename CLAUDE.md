@@ -161,6 +161,140 @@ The Craft API has changed its response format. The MCP server code has been upda
 
 The server code uses fallback logic (`responseData.items || responseData`) to support both formats during the transition period.
 
+## Authentication
+
+The server uses **OAuth 2.1 with PKCE** for secure authentication of MCP clients via GitHub. This implementation follows the official Cloudflare template for authenticated remote MCP servers.
+
+### Architecture
+
+The server implements a dual OAuth pattern:
+- **OAuth Server** to MCP clients (using `@cloudflare/workers-oauth-provider`)
+- **OAuth Client** to GitHub (for user identity verification)
+
+When an MCP client connects, it initiates an OAuth 2.1 flow with the server, which then authenticates the user via GitHub and issues bearer tokens that the client includes in subsequent requests.
+
+### Features
+
+- **OAuth 2.1 with PKCE**: Modern OAuth flow designed for native applications and CLI tools
+- **GitHub OAuth Integration**: Secure authentication using GitHub accounts
+- **User Access Control**: Optional whitelist of allowed GitHub usernames
+- **Bearer Token Authentication**: MCP clients authenticate with `Authorization: Bearer <token>` headers
+- **Automatic Token Management**: OAuth tokens and state stored securely in Cloudflare KV
+
+### Setup Instructions
+
+#### 1. Create GitHub OAuth App
+
+1. Go to [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Fill in the application details:
+   - **Application name**: Craft MCP Server (or your preferred name)
+   - **Homepage URL**: Your worker URL (e.g., `https://craft-mcp.YOUR_SUBDOMAIN.workers.dev`)
+   - **Authorization callback URL**: `https://craft-mcp.YOUR_SUBDOMAIN.workers.dev/callback`
+4. Click "Register application"
+5. Copy the **Client ID**
+6. Click "Generate a new client secret" and copy the **Client Secret**
+
+#### 2. Create KV Namespace for OAuth Tokens
+
+```bash
+# Create the KV namespace
+wrangler kv namespace create OAUTH_KV
+
+# Note the namespace ID from the output
+# Update wrangler.toml with the actual namespace ID
+```
+
+#### 3. Configure Environment Variables
+
+**For Local Development (.dev.vars):**
+```bash
+GITHUB_CLIENT_ID=your_github_client_id_here
+GITHUB_CLIENT_SECRET=your_github_client_secret_here
+# Optional: Restrict access to specific GitHub usernames
+ALLOWED_USERNAMES=username1,username2,username3
+```
+
+**For Production (Cloudflare Dashboard):**
+1. Go to Cloudflare Dashboard → Workers & Pages → Your Worker → Settings → Variables
+2. Add environment variables:
+   - `GITHUB_CLIENT_ID`: Your GitHub OAuth Client ID
+   - `GITHUB_CLIENT_SECRET`: Your GitHub OAuth Client Secret (mark as encrypted)
+   - `ALLOWED_USERNAMES` (optional): Comma-separated list of allowed GitHub usernames
+
+**Or use Wrangler CLI:**
+```bash
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
+# Optional
+wrangler secret put ALLOWED_USERNAMES
+```
+
+#### 4. Update KV Namespace in wrangler.toml
+
+After creating the KV namespace, update `wrangler.toml` with the actual namespace ID:
+
+```toml
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "your_actual_kv_namespace_id"
+```
+
+### Access Control
+
+- **No ALLOWED_USERNAMES**: All authenticated GitHub users can access the server
+- **With ALLOWED_USERNAMES**: Only specified GitHub usernames can access the server
+
+Example:
+```bash
+# Only these users can access the server after GitHub authentication
+ALLOWED_USERNAMES=johndoe,janedoe,bobsmith
+```
+
+### Authentication Flow
+
+The OAuth 2.1 flow works seamlessly with MCP clients:
+
+1. **MCP Client Initiates Connection**: Client connects to `/sse` or `/mcp` endpoint
+2. **OAuth 2.1 Flow Begins**: Server redirects client to authorization endpoint (`/authorize`)
+3. **GitHub Authentication**: User is redirected to GitHub for authentication
+4. **GitHub Callback**: After successful auth, GitHub redirects to `/callback`
+5. **User Validation**: Server validates user (checks ALLOWED_USERNAMES if configured)
+6. **Token Exchange**: MCP client exchanges authorization code for bearer token at `/token` endpoint
+7. **Authenticated Requests**: Client includes `Authorization: Bearer <token>` header in all subsequent MCP requests
+8. **Token Validation**: Server validates bearer token on each request
+
+### User Context in MCP Tools
+
+After successful authentication, the server has access to authenticated user information via `this.props`:
+
+```typescript
+type Props = {
+  login: string;        // GitHub username
+  name: string;         // Full name
+  email: string;        // Email address
+  accessToken: string;  // GitHub access token (for API calls)
+};
+```
+
+This allows MCP tools to access user-specific information and make authenticated calls to external APIs (like GitHub) on behalf of the user.
+
+### MCP Client Configuration
+
+When configuring your MCP client (e.g., Claude Desktop), use the SSE endpoint:
+
+```json
+{
+  "mcpServers": {
+    "craft": {
+      "url": "https://craft-mcp.YOUR_SUBDOMAIN.workers.dev/sse"
+    }
+  }
+}
+```
+
+The OAuth flow will be handled automatically by the MCP client when it first connects.
+
 ## Craft API Configuration
 
 ### Document Setup
@@ -209,7 +343,7 @@ CRAFT_DOCUMENTS = '{"Example Document": "https://connect.craft.do/links/YOUR_LIN
 - `GET /blocks` - Fetch blocks with optional depth control
 - `GET /blocks/search` - Search for patterns in content
 
-**Authentication**: Not yet implemented (planned for future)
+**Authentication**: Optional GitHub OAuth (see Authentication section above)
 
 ## MCP Server Details
 
@@ -252,17 +386,23 @@ Each MCP client session gets its own Durable Object instance that loads:
 
 **Environment Variables:**
 - `CRAFT_DOCUMENTS` - JSON mapping of document names to base URLs (configured in wrangler.toml)
+- `GITHUB_CLIENT_ID` - GitHub OAuth application client ID (optional, for authentication)
+- `GITHUB_CLIENT_SECRET` - GitHub OAuth application client secret (optional, for authentication)
+- `ALLOWED_USERNAMES` - Comma-separated list of allowed GitHub usernames (optional)
+- `OAUTH_KV` - KV namespace binding for OAuth token storage (required for authentication)
 
 ## Key Dependencies
 
 - `@modelcontextprotocol/sdk@1.19.1` - MCP protocol implementation
 - `agents@^0.2.8` - Cloudflare Agents SDK with McpAgent class
+- `@cloudflare/workers-oauth-provider` - OAuth 2.1 provider for MCP client authentication
+- `@octokit/rest` - GitHub API client for user authentication
 - `zod@^3.25.76` - Schema validation
 
 ## Future Enhancements
 
 Potential features to add:
-- Authentication (OAuth or API token)
+- Additional OAuth providers (Google, Microsoft, etc.)
 - Additional tools:
   - `updateBlocks` - Modify existing content in place
   - `moveBlocks` - Reorganize document structure

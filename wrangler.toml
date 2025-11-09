@@ -14,6 +14,13 @@ class_name = "MyMCP"
 tag = "v1"
 new_sqlite_classes = ["MyMCP"]
 
+# KV namespace for OAuth token storage
+# Create this namespace with: wrangler kv namespace create OAUTH_KV
+# For production, bind the namespace ID in Cloudflare Dashboard or use wrangler
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "4d15ada196da434ab5af94db8c044be4"
+
 # Document configuration
 # Add your Craft document links here in JSON format
 # To get a link ID: In Craft app, enable API for a document and copy the link
@@ -23,3 +30,20 @@ new_sqlite_classes = ["MyMCP"]
 # For production: Set CRAFT_DOCUMENTS via Cloudflare Dashboard (Workers → Settings → Variables)
 [vars]
 CRAFT_DOCUMENTS = '{"Example Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}'
+
+# GitHub OAuth 2.1 Configuration
+# The server uses OAuth 2.1 with PKCE for MCP client authentication
+# IMPORTANT: Set these via Cloudflare Dashboard (Workers → Settings → Variables → Environment Variables)
+# or use wrangler secrets for sensitive values:
+#   wrangler secret put GITHUB_CLIENT_ID
+#   wrangler secret put GITHUB_CLIENT_SECRET
+#
+# To create a GitHub OAuth App:
+# 1. Go to GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
+# 2. Set Homepage URL to your worker URL (e.g., https://craft-mcp.YOUR_SUBDOMAIN.workers.dev)
+# 3. Set Authorization callback URL to: https://craft-mcp.YOUR_SUBDOMAIN.workers.dev/callback
+# 4. Copy the Client ID and generate a Client Secret
+#
+# Optional: Comma-separated list of GitHub usernames allowed to access the server
+# If not set, all authenticated GitHub users can access the server
+# ALLOWED_USERNAMES = "username1,username2,username3"

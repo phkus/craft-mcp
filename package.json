@@ -12,13 +12,16 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@cloudflare/workers-oauth-provider": "^0.1.0",
 		"@modelcontextprotocol/sdk": "1.19.1",
+		"@octokit/rest": "^22.0.1",
 		"agents": "^0.2.8",
+		"hono": "^4.10.4",
 		"zod": "^3.25.76"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.2.5",
 		"typescript": "5.9.3",
-		"wrangler": "^4.42.0"
+		"wrangler": "^4.46.0"
 	}
 }
