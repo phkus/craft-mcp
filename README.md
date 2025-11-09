@@ -7,8 +7,8 @@ A remote [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server
 - **Document Management**: Read, write, search, and delete content in Craft documents
 - **Collection Support**: Work with Craft collections (similar to Notion databases)
 - **Multi-Document**: Support for multiple Craft documents via configuration
+- **GitHub OAuth Authentication**: Secure access control using GitHub accounts
 - **Serverless**: Deployed on Cloudflare Workers with Durable Objects
-- **No Auth Required**: Simple setup without authentication (secured via document link IDs)
 
 ## Setup
 
@@ -20,73 +20,102 @@ cd craft-mcp
 npm install
 ```
 
-### 2. Configure Craft Documents
+### 2. Create GitHub OAuth App
 
-#### Get Your Craft Document Link IDs
+1. Go to [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
+2. Click **New OAuth App**
+3. Fill in:
+   - **Application name**: Craft MCP Server
+   - **Homepage URL**: `https://craft-mcp.YOUR_SUBDOMAIN.workers.dev`
+   - **Authorization callback URL**: `https://craft-mcp.YOUR_SUBDOMAIN.workers.dev/callback`
+4. Click **Register application**
+5. Copy the **Client ID** and generate a **Client Secret**
 
-1. Open your Craft document
-2. Click **Share** → **Enable API**
-3. Copy the link ID from the generated URL
-   - Example: `AcHPMgNXYdR` from `https://connect.craft.do/links/AcHPMgNXYdR`
+### 3. Create KV Namespace
+
+```bash
+# Create the KV namespace for OAuth tokens
+wrangler kv namespace create OAUTH_KV
+
+# Note the namespace ID from the output
+# Update wrangler.toml with this ID
+```
+
+### 4. Configure Environment Variables
 
 #### For Local Development
 
 Create a `.dev.vars` file in the project root:
 
 ```bash
-CRAFT_DOCUMENTS={"My Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}
+# Craft documents
+CRAFT_DOCUMENTS={"My Document": "https://connect.craft.do/links/YOUR_LINK_ID/api/v1"}
+
+# GitHub OAuth credentials
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+
+# Optional: Restrict access to specific GitHub users
+ALLOWED_USERNAMES=username1,username2
 ```
 
-You can add multiple documents:
+**Get Craft Document Link IDs:**
+1. Open your Craft document
+2. Click **Share** → **Enable API**
+3. Copy the link ID from the URL (e.g., `AcHPMgNXYdR`)
+
+#### For Production
+
+Set via Cloudflare Dashboard (Workers & Pages → Your Worker → Settings → Variables):
+
+- `CRAFT_DOCUMENTS` - JSON mapping of document names to API URLs
+- `GITHUB_CLIENT_ID` - Your GitHub OAuth Client ID
+- `GITHUB_CLIENT_SECRET` - Your GitHub OAuth Client Secret (mark as encrypted)
+- `ALLOWED_USERNAMES` - (Optional) Comma-separated list of allowed GitHub usernames
+
+**OR** use Wrangler CLI:
 
 ```bash
-CRAFT_DOCUMENTS={"Notes": "https://connect.craft.do/links/ABC123/api/v1", "Tasks": "https://connect.craft.do/links/XYZ789/api/v1"}
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
+wrangler secret put CRAFT_DOCUMENTS
 ```
 
-**Important**: `.dev.vars` is gitignored and contains your private document links.
+### 5. Update wrangler.toml
 
-### 3. Run Locally
+Replace `YOUR_KV_NAMESPACE_ID_HERE` with your actual KV namespace ID:
+
+```toml
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "your_actual_namespace_id"
+```
+
+### 6. Run Locally
 
 ```bash
 npm run dev
 ```
 
-Your MCP server will be available at:
-- `http://localhost:8787/mcp` (recommended - streamable HTTP transport)
-- `http://localhost:8787/sse` (legacy - Server-Sent Events)
+Your MCP server will be available at `http://localhost:8787/sse`
 
-### 4. Deploy to Cloudflare
+### 7. Deploy to Cloudflare
 
-#### Set Up Production Variables
-
-Do **NOT** commit your real document links to `wrangler.toml`. Instead, set them via Cloudflare Dashboard:
-
-1. Deploy your worker: `npm run deploy` (first time only)
-2. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → Workers & Pages → Your Worker → Settings → Variables
-3. Add environment variable:
-   - **Name**: `CRAFT_DOCUMENTS`
-   - **Value**: `{"My Document": "https://connect.craft.do/links/YOUR_LINK_ID_HERE/api/v1"}`
-
-**OR** use the Wrangler CLI:
-
-```bash
-wrangler secret put CRAFT_DOCUMENTS
-# Then paste your JSON when prompted
-```
-
-#### Deploy via GitHub (Recommended)
-
-For automatic deployments:
+#### Via GitHub (Recommended)
 
 1. Connect your GitHub repo to Cloudflare (Workers & Pages → Create → Connect to Git)
-2. Push changes to `main` branch
-3. Cloudflare automatically deploys
+2. Configure environment variables in the dashboard
+3. Push changes to `main` branch - Cloudflare automatically deploys
 
-**Note**: The `keep_vars = true` setting in `wrangler.toml` ensures your dashboard variables won't be overwritten during deployment.
+#### Direct Deployment
+
+```bash
+npm run deploy
+```
+
+**Note**: Set environment variables in the dashboard first. The `keep_vars = true` setting ensures they won't be overwritten.
 
 ## Connect to Claude Desktop
-
-Use the [mcp-remote proxy](https://www.npmjs.com/package/mcp-remote) to connect Claude Desktop to your MCP server.
 
 Edit your Claude Desktop config (Settings → Developer → Edit Config):
 
@@ -94,25 +123,27 @@ Edit your Claude Desktop config (Settings → Developer → Edit Config):
 {
   "mcpServers": {
     "craft": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://localhost:8787/mcp"
-      ]
+      "url": "https://craft-mcp.YOUR_SUBDOMAIN.workers.dev/sse"
     }
   }
 }
 ```
 
-For production, replace `http://localhost:8787/mcp` with your deployed worker URL:
-`https://craft-mcp.<your-account>.workers.dev/mcp`
+For local development, use `http://localhost:8787/sse`
 
-Restart Claude Desktop and the Craft tools will become available.
+**Authentication Flow:**
+1. Restart Claude Desktop
+2. When you try to use Craft tools, you'll be redirected to GitHub
+3. Authorize the application
+4. You'll be redirected back and authentication will complete
+5. Craft tools will become available
+
+The OAuth flow is handled automatically by the MCP client.
 
 ## Available Tools
 
 - `listDocuments` - Show configured documents
-- `fetchBlocks` - Read document content with embedded IDs
+- `readDocument` - Read document content with embedded IDs
 - `insertText` - Insert markdown content into documents
 - `deleteText` - Delete pages or headings
 - `search` - Search within documents with regex support
@@ -120,7 +151,7 @@ Restart Claude Desktop and the Craft tools will become available.
 - `createCollectionItems` - Add items to collections
 - `updateCollectionItems` - Update existing collection items
 
-See [CLAUDE.md](./CLAUDE.md) for detailed tool documentation.
+See [CLAUDE.md](./CLAUDE.md) for detailed tool documentation and architecture information.
 
 ## Development
 
@@ -156,10 +187,12 @@ craft-mcp/
 
 ## Security Notes
 
-- Document link IDs provide full API access to your Craft documents
-- Keep `.dev.vars` and production environment variables private
-- Never commit real link IDs to version control
-- The repository includes placeholders only in `wrangler.toml`
+- **OAuth Authentication**: All access requires GitHub authentication
+- **User Whitelist**: Use `ALLOWED_USERNAMES` to restrict access to specific GitHub users
+- **Document Link IDs**: Provide full API access to your Craft documents - keep them private
+- **Environment Variables**: Never commit real credentials or link IDs to version control
+- **KV Namespace**: The `OAUTH_KV` namespace stores OAuth tokens and session state
+- Keep `.dev.vars` and production environment variables secure
 
 ## License
 
