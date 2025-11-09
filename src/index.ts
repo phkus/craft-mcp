@@ -2,7 +2,8 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
-import GitHubHandler, { type Props } from "./github-handler.js";
+import GitHubHandler from "./github-handler.js";
+import type { Props } from "./utils.js";
 
 // Environment variables interface
 interface Env {
@@ -14,6 +15,8 @@ interface Env {
 	ALLOWED_USERNAMES?: string;
 	// KV namespace for OAuth token storage
 	OAUTH_KV: KVNamespace;
+	// Optional: Cookie encryption key (defaults to GITHUB_CLIENT_SECRET)
+	COOKIE_ENCRYPTION_KEY?: string;
 }
 
 // Type definition for inserted blocks
