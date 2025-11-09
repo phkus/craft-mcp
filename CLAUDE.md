@@ -29,7 +29,8 @@ This ensures the GitHub repository remains the source of truth and maintains dep
 ```
 craft-mcp/
 ├── src/
-│   └── index.ts          # Main MCP server implementation (MyMCP class)
+│   ├── index.ts          # Main MCP server implementation (MyMCP class)
+│   └── archived-tools.ts # Archived collection/delete tools (removed Nov 2025)
 ├── docs/
 │   ├── craft-api-docs.md           # Craft API documentation
 │   ├── craft-mcp-spec.md           # MCP tool specifications
@@ -46,35 +47,37 @@ craft-mcp/
 
 The server supports multiple Craft documents configured via environment variables. All tools require an explicit `document` parameter to specify which document to operate on.
 
-### Three-Level Abstraction for Working with Documents
+### AI as Research Assistant: Clear Authorship Workflow
 
-The MCP server provides three levels of abstraction for accessing document content:
+**Design Philosophy:**
 
-**Level 1: Document Structure** - `readDocument`
-- Discover what's in a document (prose, headings, pages, collections)
-- See collection metadata (name, schema, item count) without loading items
-- Understand document organization before diving deeper
+This MCP server is designed around a clear principle: **AI can only add content, never modify or delete it**. This creates a clear visual and functional separation between human-written content and AI-generated contributions.
 
-**Level 2: Collection Browsing** - `getCollectionItems`
-- Query specific collections for their items
-- Browse items with properties only (`maxDepth=0`) for efficiency
-- Read full item content when needed (`maxDepth=-1` or `useMarkdown=true`)
+**Key Features:**
+- **Purple Text Color**: All AI-generated blocks are automatically styled with purple text (`#9b59b6`)
+- **Write-Only AI**: The AI can only create new blocks, not update or delete existing ones
+- **Visual Authorship Tracking**: Purple = AI-generated, Black/White = Human-written or human-edited
+- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new purple version below the original
 
-**Level 3: Item Reading** - Included in `getCollectionItems`
-- Get full content of collection items
-- Use `useMarkdown=true` for collections with short text (notes, tasks)
-- Use nested blocks (default) for complex structured content
+**Benefits:**
+1. **No confusion about authorship** - You always know what came from where
+2. **Intentional editing** - When you manually remove the purple color, you're consciously taking ownership of the content
+3. **Research assistant role** - The AI adds findings and suggestions without taking over your notes
+4. **Clean workspace** - Your notes remain yours, with AI contributions clearly marked
 
 **Typical Workflow:**
 1. `listDocuments` → Find available documents
-2. `readDocument` → Discover "Sources collection (from_year, author) - 25 items"
-3. `getCollectionItems(Sources)` → Browse all items with properties + word counts (default maxDepth=0)
-4. `getCollectionItems(Sources, filter={from_year: "1971"})` → Filter items, see which have content via word count
-5. `getCollectionItems(Sources, filter={from_year: "1971"}, maxDepth=-1, useMarkdown=true)` → Read full content of filtered items
+2. `readDocument` → Understand document structure and existing content
+3. `search` → Find relevant sections for context
+4. `insertText` → AI adds new purple-colored blocks with research findings or suggestions
 
 ### Tools
 
-#### Document & Block Tools
+The server provides **4 focused tools** that support the clear authorship workflow:
+
+#### Read-Only Tools (3 tools)
+
+These tools allow the AI to understand and search your documents without modifying them:
 
 0. **listDocuments** - Show available documents
    - No parameters
@@ -89,21 +92,7 @@ The MCP server provides three levels of abstraction for accessing document conte
    - Collections shown as: `<collection id="..." name="..."><schema>...</schema><items count="N"></items></collection>`
    - Calls: `GET /blocks` on Craft API
 
-2. **insertText** - Insert markdown content into the document
-   - `document` (required): Document name (e.g., "MCP test")
-   - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
-   - `parent` (optional): ID of page or heading to insert into (omit for root page)
-   - `position` (required): "start" or "end" - where to insert within the parent
-   - `subpage` (optional, default: false): If true, wraps content in a new page block
-   - Calls: `POST /blocks` on Craft API
-
-3. **deleteText** - Delete a page or heading and all its content
-   - `document` (required): Document name (e.g., "MCP test")
-   - `id` (required): ID of the page or heading to delete
-   - WARNING: Destructive operation that deletes entire section including nested content
-   - Calls: `DELETE /blocks` on Craft API
-
-4. **search** - Search for text within the document using pattern matching
+2. **search** - Search for text within the document using pattern matching
    - `document` (required): Document name (e.g., "MCP test")
    - `pattern` (required): Search pattern (supports regex)
    - `caseSensitive` (optional, default: false): Case-sensitive search
@@ -112,42 +101,27 @@ The MCP server provides three levels of abstraction for accessing document conte
    - Returns: Formatted results with hierarchical path and context
    - Calls: `GET /blocks/search` on Craft API
 
-#### Collection Tools
+#### Write-Only Tool (1 tool)
 
-Collections in Craft are similar to Notion databases - structured tables with custom schemas. These tools work generically with any collection schema.
+This is the **only** tool that modifies your documents, and it can only **add** content, not modify or delete:
 
-**Important:** Use `readDocument` first to discover collections and their schemas. Collection names are case-insensitive.
-
-5. **getCollectionItems** - Browse and read collection items
+3. **insertText** - Insert markdown content into the document (with automatic purple color)
    - `document` (required): Document name (e.g., "MCP test")
-   - `collectionName` (required): Collection name (case-insensitive, e.g., "Sources", "drafts")
-   - `filter` (optional): Filter items by property values (e.g., `{from_year: "1971", box_nr: 45}`)
-     - Multiple criteria use AND logic (all must match)
-     - String comparison for all value types
-   - `maxDepth` (optional, default: 0): Content depth for each item
-     - `0` = Properties + word count (fast browsing) - **default for efficient browsing**
-     - `-1` = Full nested content (for reading items)
-   - `useMarkdown` (optional, default: false): If true, returns flat `contentMarkdown` instead of nested blocks (useful for short text collections like notes)
-   - Returns: JSON array of items with `id`, `title`, `properties`, and:
-     - When `maxDepth=0`: `wordCount` field (0 if no content)
-     - When `maxDepth=-1`: `content` or `contentMarkdown` fields
-   - Calls: `GET /collections/{collectionName}/items` on Craft API (filtering and word count done client-side)
+   - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
+   - `parent` (optional): ID of page or heading to insert into (omit for root page)
+   - `position` (required): "start" or "end" - where to insert within the parent
+   - `subpage` (optional, default: false): If true, wraps content in a new page block
+   - **Automatic styling**: All inserted blocks are automatically colored purple (`#9b59b6`)
+   - Calls: `POST /blocks` on Craft API
 
-6. **createCollectionItems** - Add new items to a collection
-   - `document` (required): Document name (e.g., "MCP test")
-   - `collectionName` (required): Name of the collection
-   - `items` (required): Array of items with `title` and `properties` (schema-specific)
-   - `allowNewSelectOptions` (optional, default: false): Allow creating new select field options
-   - Returns: JSON array of created items
-   - Calls: `POST /collections/{collectionName}/items` on Craft API
+#### Archived Tools
 
-7. **updateCollectionItems** - Update existing items in a collection
-   - `document` (required): Document name (e.g., "MCP test")
-   - `collectionName` (required): Name of the collection
-   - `itemsToUpdate` (required): Array of items with `id`, optional `title`, and optional `properties`
-   - `allowNewSelectOptions` (optional, default: false): Allow creating new select field options
-   - Returns: JSON array of updated items
-   - Calls: `PUT /collections/{collectionName}/items` on Craft API
+The following tools were removed in November 2025 to support the clear authorship workflow. Their code is preserved in `src/archived-tools.ts` for future reference:
+
+- **deleteText** - Deleted blocks (removed to prevent AI from removing content)
+- **getCollectionItems** - Browsed collection items (removed to simplify toolset)
+- **createCollectionItems** - Created collection items (removed to simplify toolset)
+- **updateCollectionItems** - Updated collection items (removed to simplify toolset)
 
 ## Important: Craft API Breaking Changes (November 2025)
 
@@ -155,11 +129,20 @@ The Craft API has changed its response format. The MCP server code has been upda
 
 - **GET /blocks**: Now returns a single object instead of an array (`response` instead of `response[0]`)
 - **POST /blocks**: Now returns a single object instead of an array
-- **DELETE /blocks**: Now returns `response.items` instead of `response` array
 - **GET /blocks/search**: Now returns `response.items` instead of `response` array
-- **GET /collections/{name}/items**: No change (was already returning objects)
 
-The server code uses fallback logic (`responseData.items || responseData`) to support both formats during the transition period.
+The server code uses fallback logic (`responseData.items || responseData` or `Array.isArray(responseData) ? responseData : [responseData]`) to support both formats during the transition period.
+
+## Text Color Support in Craft API
+
+The Craft API supports setting text color on blocks via the `color` parameter:
+
+- **Property**: `color` (string, hex code format)
+- **Format**: `"#RRGGBB"` (case-insensitive)
+- **Auto-adjustment**: Craft automatically adjusts colors for readability in dark mode
+- **Example**: `{ type: "text", markdown: "...", color: "#9b59b6" }`
+
+This server uses purple (`#9b59b6`) for all AI-generated content to support clear authorship tracking.
 
 ## Authentication
 
@@ -225,10 +208,16 @@ CRAFT_DOCUMENTS = '{"Example Document": "https://connect.craft.do/links/YOUR_LIN
 
 ### API Endpoints Used
 
-- `POST /blocks` - Insert content blocks
-- `DELETE /blocks` - Delete blocks by ID
+Currently active endpoints:
+- `POST /blocks` - Insert content blocks (with color support)
 - `GET /blocks` - Fetch blocks with optional depth control
 - `GET /blocks/search` - Search for patterns in content
+
+No longer used (but supported by API):
+- `DELETE /blocks` - Delete blocks by ID (removed from toolset)
+- `GET /collections/{name}/items` - Browse collection items (removed from toolset)
+- `POST /collections/{name}/items` - Create collection items (removed from toolset)
+- `PUT /collections/{name}/items` - Update collection items (removed from toolset)
 
 **Authentication**: Optional GitHub OAuth (see Authentication section above)
 
@@ -288,15 +277,28 @@ Each MCP client session gets its own Durable Object instance that loads:
 
 ## Future Enhancements
 
-Potential features to add:
-- Additional OAuth providers (Google, Microsoft, etc.)
-- Additional tools:
-  - `updateBlocks` - Modify existing content in place
-  - `moveBlocks` - Reorganize document structure
-  - `uploadFile` - Upload and insert files (images, videos, documents)
-- Error handling improvements
-- Rate limiting
-- Logging and monitoring
+Potential features that align with the authorship workflow:
+- **Additional OAuth providers** - Support Google, Microsoft, etc. for authentication
+- **Enhanced insertText capabilities**:
+  - Support for inserting images, videos, and file attachments
+  - Batch insertion of multiple blocks in one operation
+  - Template-based content insertion
+- **Better color customization**:
+  - User-configurable color for AI-generated content
+  - Different colors for different types of AI contributions (research vs. suggestions vs. summaries)
+- **Advanced search features**:
+  - Search within specific sections or pages
+  - Boolean search operators
+  - Search result ranking and relevance scoring
+- **Infrastructure improvements**:
+  - Error handling and retry logic
+  - Rate limiting and quota management
+  - Logging, monitoring, and usage analytics
+
+Features intentionally NOT added (to preserve authorship clarity):
+- Block update/modification tools - Would blur the line between AI and human authorship
+- Block deletion tools - AI should only add, never remove
+- Inline text editing - Would make authorship tracking difficult
 
 ## Testing
 
