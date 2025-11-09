@@ -2,22 +2,8 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
-import GitHubHandler from "./github-handler.js";
+import GitHubHandler, { type Env } from "./github-handler.js";
 import type { Props } from "./utils.js";
-
-// Environment variables interface
-interface Env {
-	CRAFT_DOCUMENTS: string;
-	// GitHub OAuth credentials
-	GITHUB_CLIENT_ID: string;
-	GITHUB_CLIENT_SECRET: string;
-	// Optional: Allowed GitHub usernames for access control
-	ALLOWED_USERNAMES?: string;
-	// KV namespace for OAuth token storage
-	OAUTH_KV: KVNamespace;
-	// Optional: Cookie encryption key (defaults to GITHUB_CLIENT_SECRET)
-	COOKIE_ENCRYPTION_KEY?: string;
-}
 
 // Type definition for inserted blocks
 interface InsertedBlock {
@@ -1039,5 +1025,6 @@ export default new OAuthProvider({
 	authorizeEndpoint: "/authorize",
 	tokenEndpoint: "/token",
 	clientRegistrationEndpoint: "/register",
+	// Type assertion needed because OAuthProvider uses generic types
 	defaultHandler: GitHubHandler as any,
 });

@@ -1,4 +1,3 @@
-import { env } from "cloudflare:workers";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
 import { Octokit } from "@octokit/rest";
@@ -18,7 +17,7 @@ import {
 /**
  * Environment interface
  */
-interface Env {
+export interface Env {
 	CRAFT_DOCUMENTS: string;
 	GITHUB_CLIENT_ID: string;
 	GITHUB_CLIENT_SECRET: string;
@@ -315,4 +314,9 @@ app.get("/", async (c) => {
 	);
 });
 
-export default app;
+// Export as ExportedHandler for OAuthProvider compatibility
+export default {
+	async fetch(request: Request, env: Env & { OAUTH_PROVIDER: OAuthHelpers }, ctx: ExecutionContext): Promise<Response> {
+		return app.fetch(request, env, ctx);
+	},
+};
