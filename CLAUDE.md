@@ -54,10 +54,14 @@ The server supports multiple Craft documents configured via environment variable
 This MCP server is designed around a clear principle: **AI can only add content, never modify or delete it**. This creates a clear visual and functional separation between human-written content and AI-generated contributions.
 
 **Key Features:**
-- **Purple Text Color**: All AI-generated blocks are automatically styled with purple text (`#9b59b6`)
+- **Color-Coded Variants**: AI-generated blocks are automatically styled with color to indicate authorship and variant:
+  - Variant 1 (default): Purple text (`#9b59b6`)
+  - Variant 2: Red text (`#e74c3c`)
+  - Variant 3: Blue text (`#3498db`)
 - **Write-Only AI**: The AI can only create new blocks, not update or delete existing ones
-- **Visual Authorship Tracking**: Purple = AI-generated, Black/White = Human-written or human-edited
-- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new purple version below the original
+- **Visual Authorship Tracking**: Colored text = AI-generated, Black/White = Human-written or human-edited
+- **Divergent Thinking**: Different color variants allow the AI to present alternatives rather than continuations
+- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new colored version below the original
 
 **Benefits:**
 1. **No confusion about authorship** - You always know what came from where
@@ -69,7 +73,9 @@ This MCP server is designed around a clear principle: **AI can only add content,
 1. `listDocuments` → Find available documents
 2. `readDocument` → Understand document structure and existing content
 3. `search` → Find relevant sections for context
-4. `insertText` → AI adds new purple-colored blocks with research findings or suggestions
+4. `insertText` → AI adds new color-coded blocks with research findings or suggestions
+   - Use variant 1 (purple) for standard additions
+   - Use variants 2 (red) and 3 (blue) to present alternative interpretations or formulations
 
 ### Tools
 
@@ -105,13 +111,17 @@ These tools allow the AI to understand and search your documents without modifyi
 
 This is the **only** tool that modifies your documents, and it can only **add** content, not modify or delete:
 
-3. **insertText** - Insert markdown content into the document (with automatic purple color)
+3. **insertText** - Insert markdown content into the document (with automatic color coding)
    - `document` (required): Document name (e.g., "MCP test")
    - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
    - `parent` (optional): ID of page or heading to insert into (omit for root page)
    - `position` (required): "start" or "end" - where to insert within the parent
    - `subpage` (optional, default: false): If true, wraps content in a new page block
-   - **Automatic styling**: All inserted blocks are automatically colored purple (`#9b59b6`)
+   - `variant` (optional, default: "1"): Color variant for the block - "1" = purple (default), "2" = red, "3" = blue
+   - **Automatic styling**: All inserted blocks are automatically colored based on variant
+     - Variant 1: Purple (`#9b59b6`) - default for standard additions
+     - Variant 2: Red (`#e74c3c`) - use for alternative interpretations
+     - Variant 3: Blue (`#3498db`) - use for additional alternatives
    - Calls: `POST /blocks` on Craft API
 
 #### Archived Tools
@@ -142,7 +152,10 @@ The Craft API supports setting text color on blocks via the `color` parameter:
 - **Auto-adjustment**: Craft automatically adjusts colors for readability in dark mode
 - **Example**: `{ type: "text", markdown: "...", color: "#9b59b6" }`
 
-This server uses purple (`#9b59b6`) for all AI-generated content to support clear authorship tracking.
+This server uses three colors for AI-generated content to support clear authorship tracking and divergent thinking:
+- **Purple** (`#9b59b6`) - Variant 1, default for standard AI-generated content
+- **Red** (`#e74c3c`) - Variant 2, for presenting alternative interpretations
+- **Blue** (`#3498db`) - Variant 3, for presenting additional alternatives
 
 ## Authentication
 
