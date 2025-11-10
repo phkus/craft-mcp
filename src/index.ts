@@ -91,13 +91,14 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 				markdown: z
 					.string()
 					.describe("Markdown content to insert. Supports headings, lists, text formatting, blockquotes, etc."),
-				parent: z
+				afterBlock: z
 					.string()
 					.optional()
-					.describe("ID of page or heading to insert into. Omit for root page."),
-				position: z
-					.enum(["start", "end"])
-					.describe("Where to insert within the parent: 'start' or 'end'."),
+					.describe("ID of block to insert after. Mutually exclusive with beforeBlock."),
+				beforeBlock: z
+					.string()
+					.optional()
+					.describe("ID of block to insert before. Mutually exclusive with afterBlock."),
 				subpage: z
 					.boolean()
 					.optional()
@@ -109,15 +110,41 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 					.default("1")
 					.describe("Color variant for the inserted block: '1' = purple (default), '2' = red, '3' = blue. Use different variants to show alternatives rather than continuations."),
 			},
-			async ({ document, markdown, parent, position, subpage, variant }) => {
-			// Map variant to color
-			const variantColors: Record<string, string> = {
-				"1": "#9b59b6", // Purple (default)
-				"2": "#e74c3c", // Red
-				"3": "#3498db", // Blue
-			};
-			const color = variantColors[variant || "1"];
+			async ({ document, markdown, afterBlock, beforeBlock, subpage, variant }) => {
+				// Map variant to color
+				const variantColors: Record<string, string> = {
+					"1": "#9b59b6", // Purple (default)
+					"2": "#e74c3c", // Red
+					"3": "#3498db", // Blue
+				};
+				const color = variantColors[variant || "1"];
+
 				try {
+					// Validate parameters
+					if (!afterBlock && !beforeBlock) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: "Either afterBlock or beforeBlock must be specified.",
+								},
+							],
+							isError: true,
+						};
+					}
+
+					if (afterBlock && beforeBlock) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: "Cannot specify both afterBlock and beforeBlock. Choose one.",
+								},
+							],
+							isError: true,
+						};
+					}
+
 					// Get document URL
 					const documentUrl = this.documents[document];
 					if (!documentUrl) {
@@ -156,6 +183,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 							}
 						}
 
+						// Build position object for new API
+						const position = afterBlock
+							? { position: "after" as const, siblingId: afterBlock }
+							: { position: "before" as const, siblingId: beforeBlock! };
+
 						// Step 1: Create the page with title only (no <page> tags)
 						const pageResponse = await fetch(`${documentUrl}/blocks`, {
 							method: "POST",
@@ -167,9 +199,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 										markdown: pageTitle || "Untitled Page",
 									},
 								],
-								position: parent
-									? { position, pageId: parent }
-									: { position, pageId: "0" },
+								position,
 							}),
 						});
 
@@ -203,7 +233,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 											{
 												type: "text",
 												markdown: contentMarkdown.trim(),
-												color: color, // Color based on variant parameter
+												color, // Color based on variant parameter
 											},
 										],
 										position: {
@@ -251,17 +281,20 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 					}
 
 					// Regular text insertion (not a subpage)
+					// Build position object for new API
+					const position = afterBlock
+						? { position: "after" as const, siblingId: afterBlock }
+						: { position: "before" as const, siblingId: beforeBlock! };
+
 					const requestBody = {
 						blocks: [
 							{
 								type: "text",
 								markdown: markdown,
-								color: color, // Color based on variant parameter
+								color, // Color based on variant parameter
 							},
 						],
-						position: parent
-							? { position, pageId: parent }
-							: { position, pageId: "0" },
+						position,
 					};
 
 					const response = await fetch(`${documentUrl}/blocks`, {
@@ -286,11 +319,16 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 					const insertedBlocksData = (await response.json()) as any;
 					// Handle new API format: response is now an object, not an array
 					const insertedBlocks = Array.isArray(insertedBlocksData) ? insertedBlocksData : [insertedBlocksData];
+
+					const positionDesc = afterBlock
+						? `after block [${afterBlock}]`
+						: `before block [${beforeBlock}]`;
+
 					return {
 						content: [
 							{
 								type: "text",
-								text: `Successfully inserted text at ${position} of ${parent || "root"}. Created ${insertedBlocks.length} block(s) with ID(s): ${insertedBlocks.map((b) => b.id).join(", ")}`,
+								text: `Successfully inserted ${positionDesc}. Created ${insertedBlocks.length} block(s) with ID(s): ${insertedBlocks.map((b) => b.id).join(", ")}`,
 							},
 						],
 					};
@@ -496,6 +534,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 	/**
 	 * Convert Craft API blocks JSON to markdown with embedded IDs
+	 * All blocks are prefixed with [id] for precise positioning
 	 */
 	private convertBlocksToMarkdown(blocks: any[]): string {
 		if (!blocks || blocks.length === 0) return "";
@@ -506,7 +545,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 				const titleMatch = block.markdown?.match(/<page>(.*?)<\/page>/s);
 				const pageTitle = titleMatch ? titleMatch[1] : "";
 
-				let result = `<page id="${block.id}">\n`;
+				let result = `[${block.id}] <page>\n`;
 				result += `  <pageTitle>${pageTitle}</pageTitle>\n`;
 				result += `  <content>\n`;
 
@@ -526,18 +565,13 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 			if (block.type === "text") {
 				let markdown = block.markdown || "";
-
-				// Add ID comment for headings
-				if (block.textStyle && block.textStyle.startsWith("h")) {
-					markdown = `${markdown} <!-- id:${block.id} -->`;
-				}
-
-				return markdown + "\n\n";
+				// Add ID prefix to all text blocks
+				return `[${block.id}] ${markdown}\n\n`;
 			}
 
 			if (block.type === "collection") {
 				const collectionName = block.markdown || "Unnamed Collection";
-				let result = `<collection id="${block.id}" name="${collectionName}">\n`;
+				let result = `[${block.id}] <collection name="${collectionName}">\n`;
 
 				// Extract schema from items
 				const items = block.items || [];
@@ -555,8 +589,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 				return result;
 			}
 
-			// Other block types (images, files, etc.)
-			return (block.markdown || "") + "\n\n";
+			// Other block types (images, videos, files, etc.)
+			// Add ID prefix for all block types
+			const markdown = block.markdown || "";
+			const blockTypeTag = block.type ? `<${block.type}>` : "";
+			return `[${block.id}] ${markdown || blockTypeTag}\n\n`;
 		};
 
 		let result = "";

@@ -54,14 +54,10 @@ The server supports multiple Craft documents configured via environment variable
 This MCP server is designed around a clear principle: **AI can only add content, never modify or delete it**. This creates a clear visual and functional separation between human-written content and AI-generated contributions.
 
 **Key Features:**
-- **Color-Coded Variants**: AI-generated blocks are automatically styled with color to indicate authorship and variant:
-  - Variant 1 (default): Purple text (`#9b59b6`)
-  - Variant 2: Red text (`#e74c3c`)
-  - Variant 3: Blue text (`#3498db`)
+- **Purple Text Color**: All AI-generated blocks are automatically styled with purple text (`#9b59b6`)
 - **Write-Only AI**: The AI can only create new blocks, not update or delete existing ones
-- **Visual Authorship Tracking**: Colored text = AI-generated, Black/White = Human-written or human-edited
-- **Divergent Thinking**: Different color variants allow the AI to present alternatives rather than continuations
-- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new colored version below the original
+- **Visual Authorship Tracking**: Purple = AI-generated, Black/White = Human-written or human-edited
+- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new purple version below the original
 
 **Benefits:**
 1. **No confusion about authorship** - You always know what came from where
@@ -76,6 +72,49 @@ This MCP server is designed around a clear principle: **AI can only add content,
 4. `insertText` → AI adds new color-coded blocks with research findings or suggestions
    - Use variant 1 (purple) for standard additions
    - Use variants 2 (red) and 3 (blue) to present alternative interpretations or formulations
+
+### Block ID Format
+
+All blocks in `readDocument` output are prefixed with `[id]` for precise positioning:
+
+```markdown
+[0] <page>
+  <pageTitle>Research Notes</pageTitle>
+  <content>
+
+[1] # Introduction
+
+[2] This is the first paragraph with some context.
+
+[3] - Key point one
+[4] - Key point two
+
+[5] <image url="..." alt="Diagram" />
+
+[6] <page>
+  <pageTitle>Subsection</pageTitle>
+  <content>
+
+[7] ## Details
+
+[8] More content here.
+
+  </content>
+</page>
+
+[9] <collection name="Tasks">
+  <schema>title, status, priority</schema>
+  <items count="3"></items>
+</collection>
+
+  </content>
+</page>
+```
+
+**Using IDs for insertion:**
+- To insert after the first paragraph: `insertText(afterBlock="2", markdown="New paragraph")`
+- To insert before the image: `insertText(beforeBlock="5", markdown="Caption text")`
+- To insert after a list item: `insertText(afterBlock="4", markdown="Additional point")`
 
 ### Tools
 
@@ -94,8 +133,9 @@ These tools allow the AI to understand and search your documents without modifyi
    - `document` (required): Document name (e.g., "MCP test")
    - `id` (optional): ID of page or heading to fetch (omit for root page)
    - `maxDepth` (optional, default: -1): Maximum nesting depth (-1 for all, 0 for block only, 1 for immediate children)
-   - Returns: Markdown with embedded IDs, prose content, and collection metadata
-   - Collections shown as: `<collection id="..." name="..."><schema>...</schema><items count="N"></items></collection>`
+   - Returns: Markdown with `[id]` prefix for all blocks, enabling precise positioning
+   - Format: `[123] # Heading`, `[124] Paragraph text`, `[125] <image>`, etc.
+   - Collections shown as: `[id] <collection name="..."><schema>...</schema><items count="N"></items></collection>`
    - Calls: `GET /blocks` on Craft API
 
 2. **search** - Search for text within the document using pattern matching
@@ -114,15 +154,17 @@ This is the **only** tool that modifies your documents, and it can only **add** 
 3. **insertText** - Insert markdown content into the document (with automatic color coding)
    - `document` (required): Document name (e.g., "MCP test")
    - `markdown` (required): Markdown content to insert (supports headings, lists, formatting, blockquotes)
-   - `parent` (optional): ID of page or heading to insert into (omit for root page)
-   - `position` (required): "start" or "end" - where to insert within the parent
+   - `afterBlock` (optional): Block ID to insert after (mutually exclusive with beforeBlock)
+   - `beforeBlock` (optional): Block ID to insert before (mutually exclusive with afterBlock)
+   - Exactly one of `afterBlock` or `beforeBlock` must be specified
    - `subpage` (optional, default: false): If true, wraps content in a new page block
    - `variant` (optional, default: "1"): Color variant for the block - "1" = purple (default), "2" = red, "3" = blue
    - **Automatic styling**: All inserted blocks are automatically colored based on variant
      - Variant 1: Purple (`#9b59b6`) - default for standard additions
      - Variant 2: Red (`#e74c3c`) - use for alternative interpretations
      - Variant 3: Blue (`#3498db`) - use for additional alternatives
-   - Calls: `POST /blocks` on Craft API
+   - **Example**: `insertText(document="MCP test", afterBlock="123", markdown="New content", variant="1")`
+   - Calls: `POST /blocks` on Craft API with `{ position: "after", siblingId: "123" }`
 
 #### Archived Tools
 
@@ -152,10 +194,7 @@ The Craft API supports setting text color on blocks via the `color` parameter:
 - **Auto-adjustment**: Craft automatically adjusts colors for readability in dark mode
 - **Example**: `{ type: "text", markdown: "...", color: "#9b59b6" }`
 
-This server uses three colors for AI-generated content to support clear authorship tracking and divergent thinking:
-- **Purple** (`#9b59b6`) - Variant 1, default for standard AI-generated content
-- **Red** (`#e74c3c`) - Variant 2, for presenting alternative interpretations
-- **Blue** (`#3498db`) - Variant 3, for presenting additional alternatives
+This server uses purple (`#9b59b6`) for all AI-generated content to support clear authorship tracking.
 
 ## Authentication
 
