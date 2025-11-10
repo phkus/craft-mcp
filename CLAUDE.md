@@ -54,16 +54,17 @@ The server supports multiple Craft documents configured via environment variable
 This MCP server is designed around a clear principle: **AI can only add content, never modify or delete it**. This creates a clear visual and functional separation between human-written content and AI-generated contributions.
 
 **Key Features:**
-- **Purple Text Color**: All AI-generated blocks are automatically styled with purple text (`#9b59b6`)
+- **Visual Styling**: All AI-generated blocks use callout formatting with colored text
+- **Color Coding**: Purple (default), red, or blue text based on variant parameter
 - **Write-Only AI**: The AI can only create new blocks, not update or delete existing ones
-- **Visual Authorship Tracking**: Purple = AI-generated, Black/White = Human-written or human-edited
-- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new purple version below the original
+- **Visual Authorship Tracking**: Callout blocks with color = AI-generated, regular text = Human-written
+- **Intentional Workflow**: If the AI wants to suggest changes to existing text, it creates a new colored callout version below the original
 
 **Benefits:**
-1. **No confusion about authorship** - You always know what came from where
-2. **Intentional editing** - When you manually remove the purple color, you're consciously taking ownership of the content
+1. **No confusion about authorship** - Callout styling makes AI contributions instantly recognizable
+2. **Intentional editing** - When you manually remove the callout/color, you're consciously taking ownership of the content
 3. **Research assistant role** - The AI adds findings and suggestions without taking over your notes
-4. **Clean workspace** - Your notes remain yours, with AI contributions clearly marked
+4. **Clean workspace** - Your notes remain yours, with AI contributions visually separated
 
 **Typical Workflow:**
 1. `listDocuments` → Find available documents
@@ -159,10 +160,11 @@ This is the **only** tool that modifies your documents, and it can only **add** 
    - Exactly one of `afterBlock` or `beforeBlock` must be specified
    - `subpage` (optional, default: false): If true, wraps content in a new page block
    - `variant` (optional, default: "1"): Color variant for the block - "1" = purple (default), "2" = red, "3" = blue
-   - **Automatic styling**: All inserted blocks are automatically colored based on variant
-     - Variant 1: Purple (`#9b59b6`) - default for standard additions
-     - Variant 2: Red (`#e74c3c`) - use for alternative interpretations
-     - Variant 3: Blue (`#3498db`) - use for additional alternatives
+   - **Automatic styling**: All inserted blocks use callout formatting with color based on variant
+     - Variant 1: Purple callout (`#9b59b6`) - default for standard additions
+     - Variant 2: Red callout (`#e74c3c`) - use for alternative interpretations
+     - Variant 3: Blue callout (`#3498db`) - use for additional alternatives
+     - Callout decoration provides visual separation from human-written content
    - **Example**: `insertText(document="MCP test", afterBlock="123", markdown="New content", variant="1")`
    - Calls: `POST /blocks` on Craft API with `{ position: "after", siblingId: "123" }`
 
@@ -185,16 +187,22 @@ The Craft API has changed its response format. The MCP server code has been upda
 
 The server code uses fallback logic (`responseData.items || responseData` or `Array.isArray(responseData) ? responseData : [responseData]`) to support both formats during the transition period.
 
-## Text Color Support in Craft API
+## Text Styling Support in Craft API
 
-The Craft API supports setting text color on blocks via the `color` parameter:
+The Craft API supports visual styling of text blocks:
 
+**Color:**
 - **Property**: `color` (string, hex code format)
 - **Format**: `"#RRGGBB"` (case-insensitive)
 - **Auto-adjustment**: Craft automatically adjusts colors for readability in dark mode
 - **Example**: `{ type: "text", markdown: "...", color: "#9b59b6" }`
 
-This server uses purple (`#9b59b6`) for all AI-generated content to support clear authorship tracking.
+**Decorations:**
+- **Property**: `decorations` (array of strings)
+- **Supported values**: `["callout"]` - creates a visually highlighted block
+- **Example**: `{ type: "text", markdown: "...", color: "#9b59b6", decorations: ["callout"] }`
+
+This server uses callout decoration with color variants (purple/red/blue) for all AI-generated content to provide clear visual separation and authorship tracking.
 
 ## Authentication
 

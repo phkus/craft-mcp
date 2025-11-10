@@ -234,6 +234,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 												type: "text",
 												markdown: contentMarkdown.trim(),
 												color, // Color based on variant parameter
+												decorations: ["callout"]
 											},
 										],
 										position: {
@@ -292,6 +293,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 								type: "text",
 								markdown: markdown,
 								color, // Color based on variant parameter
+								decorations: ["callout"]
 							},
 						],
 						position,
