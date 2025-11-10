@@ -71,8 +71,8 @@ This MCP server is designed around a clear principle: **AI can only add content,
 2. `readDocument` → Understand document structure and existing content
 3. `search` → Find relevant sections for context
 4. `insertText` → AI adds new color-coded blocks with research findings or suggestions
-   - Use variant 1 (purple) for all standard additions and revisions of user text
-   - Use variants 2 (red) and 3 (blue) only for alternative AI formulations
+   - Use variant 1 (purple) for all standard additions and when revising/improving user's existing text
+   - **IMPORTANT:** Use variants 2 (red) and 3 (blue) only to present multiple alternative AI formulations of the same idea
    - Insert alternatives sequentially (variant 2 after variant 1, variant 3 after variant 2)
 
 ### Block ID Format
@@ -162,10 +162,10 @@ This is the **only** tool that modifies your documents, and it can only **add** 
    - `subpage` (optional, default: false): If true, wraps content in a new page block
    - `variant` (optional, default: "1"): Color variant - "1" = purple, "2" = red, "3" = blue
    - **Automatic styling**: All inserted blocks use callout formatting with color based on variant
-     - Variant 1: Purple callout (`#9b59b6`) - use for all standard additions and revisions of user text
-     - Variant 2: Red callout (`#e74c3c`) - only for alternative AI formulations
-     - Variant 3: Blue callout (`#3498db`) - only for additional AI alternatives
-     - Insert alternatives sequentially: variant 2 after variant 1, variant 3 after variant 2
+     - Variant 1: Purple callout (`#9b59b6`) - use for all standard additions and when revising/improving user text
+     - Variant 2: Red callout (`#e74c3c`) - **IMPORTANT:** only for presenting alternative AI formulations of the same idea
+     - Variant 3: Blue callout (`#3498db`) - **IMPORTANT:** only for additional AI alternatives
+     - When creating alternatives: insert sequentially (variant 2 after variant 1, variant 3 after variant 2)
      - Callout decoration provides visual separation from human-written content
    - **Example**: `insertText(document="MCP test", afterBlock="123", markdown="New content", variant="1")`
    - Calls: `POST /blocks` on Craft API with `{ position: "after", siblingId: "123" }`

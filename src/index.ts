@@ -108,7 +108,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 					.enum(["1", "2", "3"])
 					.optional()
 					.default("1")
-					.describe("Color variant: '1' = purple (default), '2' = red, '3' = blue. Only use variants 2 and 3 for alternative AI formulations (not for revising user's text). Insert alternative variants sequentially (after each other, not after the same block)."),
+					.describe("Color variant: '1' = purple (default), '2' = red, '3' = blue. IMPORTANT: Use variant 1 when revising/improving user's existing text. Only use variants 2 and 3 to present multiple alternative AI-written formulations of the same idea. Insert alternative variants sequentially (after each other, not after the same block)."),
 			},
 			async ({ document, markdown, afterBlock, beforeBlock, subpage, variant }) => {
 				// Map variant to color
