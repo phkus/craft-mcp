@@ -1,14 +1,19 @@
 # Craft MCP Server
 
-A remote [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [Craft](https://www.craft.do/) document management, deployed on Cloudflare Workers. This server enables AI assistants like Claude to read, write, search, and manage Craft documents and collections.
+A remote [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [Craft](https://www.craft.do/), deployed on Cloudflare Workers. This server enables AI assistants like Claude to read, write, search, and manage Craft documents.
 
 ## Features
 
-- **Document Management**: Read, write, search, and delete content in Craft documents
-- **Collection Support**: Work with Craft collections (similar to Notion databases)
+- **Document Management**: Read, write, and search in Craft documents
 - **Multi-Document**: Support for multiple Craft documents via configuration
-- **Serverless**: Deployed on Cloudflare Workers with Durable Objects
-- **No Auth Required**: Simple setup without authentication (secured via document link IDs)
+- **Authorship separation**: Blocks created via MCP have a unique appearance (purple blocks), keeping AI-formulated content clearly identifiable
+
+## Available Tools
+
+- `listDocuments` - Show configured documents
+- `search` - find blocks in one of the documents
+- `readDocument` - Read document content with embedded IDs
+- `insertText` - Insert markdown content into documents, optionally as a subpage
 
 ## Setup
 
@@ -109,19 +114,6 @@ For production, replace `http://localhost:8787/mcp` with your deployed worker UR
 
 Restart Claude Desktop and the Craft tools will become available.
 
-## Available Tools
-
-- `listDocuments` - Show configured documents
-- `fetchBlocks` - Read document content with embedded IDs
-- `insertText` - Insert markdown content into documents
-- `deleteText` - Delete pages or headings
-- `search` - Search within documents with regex support
-- `getCollectionItems` - Retrieve items from Craft collections
-- `createCollectionItems` - Add items to collections
-- `updateCollectionItems` - Update existing collection items
-
-See [CLAUDE.md](./CLAUDE.md) for detailed tool documentation.
-
 ## Development
 
 ```bash
@@ -159,7 +151,7 @@ craft-mcp/
 - Document link IDs provide full API access to your Craft documents
 - Keep `.dev.vars` and production environment variables private
 - Never commit real link IDs to version control
-- The repository includes placeholders only in `wrangler.toml`
+- The repository includeshh placeholders only in `wrangler.toml`
 
 ## License
 
